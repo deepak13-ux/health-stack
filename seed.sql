@@ -4,13 +4,13 @@ INSERT INTO Department (Dept_id, Dept_name, Description) VALUES
 (2, 'Neurology', 'Brain and nervous system treatment');
 
 -- Employees & Subclasses
-INSERT INTO Employee (Employee_id, First_name, Last_name, Gender, DOB, Date_join, Mail, Salary) VALUES
-(101, 'Arjun', 'Mehta', 'Male', '1982-05-14', '2015-06-01', 'arjun.mehta@healthstack.com', 120000.00),
-(102, 'Priya', 'Sharma', 'Female', '1990-08-22', '2018-03-15', 'priya.sharma@healthstack.com', 95000.00);
+INSERT INTO Employee (Employee_id, First_name, Last_name, Gender, DOB, Date_join, Mail, Salary, Role) VALUES
+(101, 'Arjun', 'Mehta', 'Male', '1982-05-14', '2015-06-01', 'arjun.mehta@healthstack.com', 120000.00, 'Doctor'),
+(102, 'Priya', 'Sharma', 'Female', '1990-08-22', '2018-03-15', 'priya.sharma@healthstack.com', 95000.00, 'Doctor');
 
-INSERT INTO Doctor (Employee_id, License_no, Dept_id) VALUES
-(101, 'MED-CARD-8832', 1),
-(102, 'MED-NEUR-4410', 2);
+INSERT INTO Doctor (Employee_id, License_no, Dept_id, Consultation_fee) VALUES
+(101, 'MED-CARD-8832', 1, 800.00),
+(102, 'MED-NEUR-4410', 2, 700.00);
 
 -- Medicines
 INSERT INTO Medicine (Med_id, Med_name, Price) VALUES
