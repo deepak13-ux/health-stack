@@ -11,26 +11,28 @@ HealthStack is a MySQL database for a hospital: staff, patients, appointments, p
 
 | File | Contents |
 |---|---|
-| [`table.sql`](table.sql) | Creates the `healthstack` database and all 14 tables |
-| [`triggers.sql`](triggers.sql) | Validation and billing triggers (see [3.3](#33-known-issues) before running) |
-| [`triggers.local.sql`](triggers.local.sql) | Alternative trigger set that matches the current `table.sql` |
-| [`seed.sql`](seed.sql) | Sample data: 2 departments, 2 doctors, 3 medicines |
-| [`strategy.md`](strategy.md) | ACID definitions |
-| [`ER/`](ER/) | ER diagram and transaction plan images |
+| [`schema/table.sql`](../schema/table.sql) | Creates the `healthstack` database and all 14 tables |
+| [`triggers/triggers.sql`](../triggers/triggers.sql) | Validation and billing triggers (see [3.3](#33-known-issues) before running) |
+| [`triggers/triggers.local.sql`](../triggers/triggers.local.sql) | Alternative trigger set that matches the current `table.sql` |
+| [`seed/seed.sql`](../seed/seed.sql) | Sample data: 2 departments, 2 doctors, 3 medicines |
+| [`docs/strategy.md`](strategy.md) | ACID definitions |
+| [`docs/diagrams/`](diagrams/) | ER diagram and transaction plan images |
 
 **Run order:** `table.sql`, then one trigger file, then `seed.sql`. Requires **MySQL 8.0.16 or later**, because older versions silently ignore `CHECK` constraints.
 
+Run these from the repository root:
+
 ```bash
-mysql -u root -p < table.sql
-mysql -u root -p healthstack < triggers.local.sql
-mysql -u root -p healthstack < seed.sql
+mysql -u root -p < schema/table.sql
+mysql -u root -p healthstack < triggers/triggers.local.sql
+mysql -u root -p healthstack < seed/seed.sql
 ```
 
 ---
 
 ## 1. ER Design
 
-![HealthStack ER diagram](ER/HealthStack_ER.jpeg)
+![HealthStack ER diagram](diagrams/HealthStack_ER.jpeg)
 
 ### 1.1 Entities
 
@@ -294,7 +296,7 @@ The bill and prescription-lock triggers in `triggers.sql` don't match the curren
 
 ### 4.1 The plan
 
-From [`ER/TransactionPlan_1.jpeg`](ER/TransactionPlan_1.jpeg) and [`ER/TransactionPlan_2.jpeg`](ER/TransactionPlan_2.jpeg). The second image ends with "…", so the plan may continue beyond T6.
+From [`diagrams/TransactionPlan_1.jpeg`](diagrams/TransactionPlan_1.jpeg) and [`diagrams/TransactionPlan_2.jpeg`](diagrams/TransactionPlan_2.jpeg). The second image ends with "…", so the plan may continue beyond T6.
 
 | ID | Workflow (actor) | Tables affected | Purpose / risk mitigated |
 |---|---|---|---|
