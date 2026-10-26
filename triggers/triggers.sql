@@ -62,7 +62,7 @@ drop trigger if exists trg_patient_dob_bu;
 
 drop procedure if exists check_employee_role;
 
-DELIMITER $$
+DELIMITER //
 
 -- an employee's role must match their subclass table
 create procedure check_employee_role(
@@ -79,55 +79,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'employee does not exist or has a different role';
     end if;
-end$$
-
-create trigger trg_doctor_role_bi
-before insert on Doctor
-for each row call check_employee_role(new.Employee_id, 'Doctor')$$
-
-create trigger trg_doctor_role_bu
-before update on Doctor
-for each row call check_employee_role(new.Employee_id, 'Doctor')$$
-
-create trigger trg_nurse_role_bi
-before insert on Nurse
-for each row call check_employee_role(new.Employee_id, 'Nurse')$$
-
-create trigger trg_nurse_role_bu
-before update on Nurse
-for each row call check_employee_role(new.Employee_id, 'Nurse')$$
-
-create trigger trg_ward_boy_role_bi
-before insert on Ward_boy
-for each row call check_employee_role(new.Employee_id, 'Ward_boy')$$
-
-create trigger trg_ward_boy_role_bu
-before update on Ward_boy
-for each row call check_employee_role(new.Employee_id, 'Ward_boy')$$
-
-create trigger trg_receptionist_role_bi
-before insert on Receptionist
-for each row call check_employee_role(new.Employee_id, 'Receptionist')$$
-
-create trigger trg_receptionist_role_bu
-before update on Receptionist
-for each row call check_employee_role(new.Employee_id, 'Receptionist')$$
-
-create trigger trg_technician_role_bi
-before insert on Technician
-for each row call check_employee_role(new.Employee_id, 'Technician')$$
-
-create trigger trg_technician_role_bu
-before update on Technician
-for each row call check_employee_role(new.Employee_id, 'Technician')$$
-
-create trigger trg_pharmacist_role_bi
-before insert on Pharmacist
-for each row call check_employee_role(new.Employee_id, 'Pharmacist')$$
-
-create trigger trg_pharmacist_role_bu
-before update on Pharmacist
-for each row call check_employee_role(new.Employee_id, 'Pharmacist')$$
+end //
 
 -- change an employee's role only after removing their old subclass row
 create trigger trg_employee_role_lock
@@ -145,7 +97,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'remove the employee from their subclass table before changing role';
     end if;
-end$$
+end //
 
 -- employee dates must be valid, and the employee must be at least 18 when joining
 create trigger trg_employee_dates_bi
@@ -166,7 +118,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'employee must be at least 18 years old when joining';
     end if;
-end$$
+end //
 
 create trigger trg_employee_dates_bu
 before update on Employee
@@ -186,7 +138,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'employee must be at least 18 years old when joining';
     end if;
-end$$
+end //
 
 -- capture the medicine price when a prescription line is added
 create trigger trg_pres_details_bi
@@ -206,7 +158,7 @@ begin
     set new.Unit_price = (
         select Price from Medicine where Med_id = new.Med_id
     );
-end$$
+end //
 
 -- keep billed prescription lines fixed; changing the medicine captures its current price
 create trigger trg_pres_details_bu
@@ -235,7 +187,7 @@ begin
     else
         set new.Unit_price = old.Unit_price;
     end if;
-end$$
+end //
 
 create trigger trg_pres_details_bd
 before delete on Pres_Details
@@ -250,7 +202,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'prescription is already billed';
     end if;
-end$$
+end //
 
 -- a prescription cannot be dated before its appointment
 create trigger trg_prescription_bi
@@ -266,7 +218,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'prescription date cannot be before the appointment date';
     end if;
-end$$
+end //
 
 create trigger trg_prescription_bu
 before update on Prescription
@@ -281,7 +233,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'prescription date cannot be before the appointment date';
     end if;
-end$$
+end //
 
 -- prevent a billed prescription from being deleted
 create trigger trg_prescription_bd
@@ -296,7 +248,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'prescription is already billed';
     end if;
-end$$
+end //
 
 -- calculate the bill when it is created; later edits must not change its amount
 create trigger trg_bill_bi
@@ -325,7 +277,7 @@ begin
         join Pres_Details as pd on pd.Pres_id = p.Pres_id
         where p.Appointment_id = new.Appointment_id
     );
-end$$
+end //
 
 create trigger trg_bill_bu
 before update on Bill
@@ -347,7 +299,7 @@ begin
 
     set new.Consultation_fee = old.Consultation_fee;
     set new.Bill_amount = old.Bill_amount;
-end$$
+end //
 
 -- a patient's date of birth cannot be in the future
 create trigger trg_patient_dob_bi
@@ -358,7 +310,7 @@ begin
         signal sqlstate '45000'
             set message_text = 'dob cannot be in the future';
     end if;
-end$$
+end //
 
 create trigger trg_patient_dob_bu
 before update on Patient
@@ -368,6 +320,6 @@ begin
         signal sqlstate '45000'
             set message_text = 'dob cannot be in the future';
     end if;
-end$$
+end //
 
 DELIMITER ;
