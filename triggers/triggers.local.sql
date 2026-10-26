@@ -31,7 +31,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM Employee WHERE Employee_id = p_emp_id AND Role = p_role) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Employee does not exist or has a different Role';
     END IF;
-END$$
+END //
 
 CREATE TRIGGER trg_doctor_role BEFORE INSERT ON Doctor
 FOR EACH ROW CALL check_employee_role(NEW.Employee_id, 'Doctor')$$
@@ -64,7 +64,7 @@ BEGIN
         OR EXISTS (SELECT 1 FROM Pharmacist   WHERE Employee_id = OLD.Employee_id)) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Remove the employee from their subclass table before changing Role';
     END IF;
-END$$
+END //
 
 -- -----------------------------------------------------
 -- 2. Pres_Details: record the price at prescription time; freeze once billed
@@ -77,7 +77,7 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Prescription is already billed';
     END IF;
     SET NEW.Unit_price = (SELECT Price FROM Medicine WHERE Med_id = NEW.Med_id);
-END$$
+END //
 
 CREATE TRIGGER trg_pres_details_bu BEFORE UPDATE ON Pres_Details
 FOR EACH ROW
@@ -91,7 +91,7 @@ BEGIN
     ELSE
         SET NEW.Unit_price = OLD.Unit_price;
     END IF;
-END$$
+END //
 
 CREATE TRIGGER trg_pres_details_bd BEFORE DELETE ON Pres_Details
 FOR EACH ROW
@@ -100,7 +100,7 @@ BEGIN
                WHERE p.Pres_id = OLD.Pres_id) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Prescription is already billed';
     END IF;
-END$$
+END //
 
 -- -----------------------------------------------------
 -- 3. Prescription: date not before the appointment; can't be deleted once billed
@@ -111,7 +111,7 @@ BEGIN
     IF NEW.Pres_date < (SELECT Date FROM Appointment WHERE Appointment_id = NEW.Appointment_id) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Pres_date is before the appointment date';
     END IF;
-END$$
+END //
 
 -- Needed because deleting a Prescription cascades to Pres_Details without firing its triggers
 CREATE TRIGGER trg_prescription_bd BEFORE DELETE ON Prescription
@@ -120,7 +120,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM Bill WHERE Appointment_id = OLD.Appointment_id) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Prescription is already billed';
     END IF;
-END$$
+END //
 
 -- -----------------------------------------------------
 -- 4. Bill: amount is computed, never typed in
@@ -137,7 +137,7 @@ BEGIN
     SET NEW.Bill_amount = NEW.Consultation_fee + (SELECT COALESCE(SUM(pd.Quantity * pd.Unit_price), 0)
                                                   FROM Prescription p JOIN Pres_Details pd ON pd.Pres_id = p.Pres_id
                                                   WHERE p.Appointment_id = NEW.Appointment_id);
-END$$
+END //
 
 -- Payment mode and date may be corrected; the amounts and appointment may not
 CREATE TRIGGER trg_bill_bu BEFORE UPDATE ON Bill
@@ -148,7 +148,7 @@ BEGIN
     END IF;
     SET NEW.Consultation_fee = OLD.Consultation_fee;
     SET NEW.Bill_amount = OLD.Bill_amount;
-END$$
+END //
 
 -- -----------------------------------------------------
 -- 5. Patient: DOB cannot be in the future (CHECK can't use CURDATE())
@@ -159,7 +159,7 @@ BEGIN
     IF NEW.DOB > CURDATE() THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'DOB cannot be in the future';
     END IF;
-END$$
+END //
 
 CREATE TRIGGER trg_patient_dob_bu BEFORE UPDATE ON Patient
 FOR EACH ROW
@@ -167,6 +167,6 @@ BEGIN
     IF NEW.DOB > CURDATE() THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'DOB cannot be in the future';
     END IF;
-END$$
+END //
 
 DELIMITER ;
