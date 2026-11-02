@@ -92,6 +92,7 @@ CREATE TABLE Appointment (
     Doctor_id INT NOT NULL,
     Date DATE NOT NULL,
     Time TIME NOT NULL,
+    Status VARCHAR(20) NOT NULL DEFAULT 'Scheduled' CHECK (Status IN ('Scheduled', 'Completed', 'Cancelled')),
     UNIQUE (Doctor_id, Date, Time),
     UNIQUE (Patient_id, Date, Time),
     FOREIGN KEY (Patient_id) REFERENCES Patient(Patient_id) ON DELETE RESTRICT,
@@ -129,6 +130,28 @@ CREATE TABLE Bill (
     Consultation_fee DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (Consultation_fee >= 0),
     Bill_amount DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (Bill_amount >= 0),
     Bill_date DATE NOT NULL,
-    Payment_mode VARCHAR(50) NOT NULL CHECK (Payment_mode IN ('Cash', 'Card', 'UPI', 'Insurance', 'NetBanking')),
+    Paid_date DATE NULL,
+    Payment_status VARCHAR(10) NOT NULL DEFAULT 'Pending' CHECK (Payment_status IN ('Pending', 'Paid')),
+    Payment_mode VARCHAR(50) NULL CHECK (Payment_mode IN ('Cash', 'Card', 'UPI', 'Insurance', 'NetBanking')),
+    CHECK (Payment_status = 'Pending' OR Payment_mode IS NOT NULL),
     FOREIGN KEY (Appointment_id) REFERENCES Appointment(Appointment_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE Ward (
+    Ward_id INT PRIMARY KEY AUTO_INCREMENT,
+    Ward_name VARCHAR(50) UNIQUE NOT NULL,
+    Capacity INT NOT NULL CHECK (Capacity > 0)
+);
+
+CREATE TABLE Admission (
+    Admission_id INT PRIMARY KEY AUTO_INCREMENT,
+    Patient_id INT NOT NULL,
+    Ward_id INT NOT NULL,
+    Nurse_id INT NOT NULL,
+    Admit_date DATE NOT NULL,
+    Discharge_date DATE,
+    CHECK (Discharge_date IS NULL OR Discharge_date >= Admit_date),
+    FOREIGN KEY (Patient_id) REFERENCES Patient(Patient_id) ON DELETE RESTRICT,
+    FOREIGN KEY (Ward_id) REFERENCES Ward(Ward_id) ON DELETE RESTRICT,
+    FOREIGN KEY (Nurse_id) REFERENCES Nurse(Employee_id) ON DELETE RESTRICT
 );

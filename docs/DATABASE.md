@@ -9,14 +9,13 @@ HealthStack is a MySQL database for a hospital: staff, patients, appointments, p
 
 **Files**
 
-| File                                                            | Contents                                                                     |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| [`schema/table.sql`](../schema/table.sql)                       | Creates the `healthstack` database and all 14 tables                         |
-| [`triggers/triggers.sql`](../triggers/triggers.sql)             | Validation and billing triggers (see [3.3](#33-known-issues) before running) |
-| [`triggers/triggers.local.sql`](../triggers/triggers.local.sql) | Alternative trigger set that matches the current `table.sql`                 |
-| [`seed/seed.sql`](../seed/seed.sql)                             | Sample data: 2 departments, 2 doctors, 3 medicines                           |
-| [`docs/strategy.md`](strategy.md)                               | ACID definitions                                                             |
-| [`docs/diagrams/`](diagrams/)                                   | ER diagram and transaction plan images                                       |
+| File                                                | Contents                                                                     |
+| --------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`schema/table.sql`](../schema/table.sql)           | Creates the `healthstack` database and all 14 tables                         |
+| [`triggers/triggers.sql`](../triggers/triggers.sql) | Validation and billing triggers (see [3.3](#33-known-issues) before running) |
+| [`seed/seed.sql`](../seed/seed.sql)                 | Sample data: 2 departments, 2 doctors, 3 medicines                           |
+| [`docs/DATABASE.md`](DATABASE.md)                   | This File                                                                    |
+| [`docs/diagrams/`](diagrams/)                       | ER diagram and transaction plan images                                       |
 
 **Run order:** `table.sql`, then one trigger file, then `seed.sql`. Requires **MySQL 8.0.16 or later**, because older versions silently ignore `CHECK` constraints.
 
@@ -229,7 +228,6 @@ erDiagram
 
 ### 2.3 Design decisions
 
-- **Medical and billing records are never deleted by accident.** `Appointment`, `Prescription` and `Bill` all use `ON DELETE RESTRICT`. A patient, doctor or appointment that has history cannot be deleted. Deleting an employee who is a doctor with appointments is blocked as well.
 - **Old bills don't change when medicine prices change.** `Pres_Details.Unit_price` records the price at the time of prescribing. The bill is calculated from that recorded price, not from `Medicine.Price`.
 - **Bill total** = `Consultation_fee` + sum of (`Quantity` × `Unit_price`) for the appointment's prescription.
 - **The script can be re-run.** `table.sql` drops existing tables in reverse dependency order before creating them.
@@ -292,7 +290,7 @@ The bill and prescription-lock triggers in `triggers.sql` don't match the curren
 
 ---
 
-## 4. Transaction Plan
+## 4. Transactions
 
 ### 4.1 The plan
 
@@ -307,56 +305,7 @@ From [`diagrams/TransactionPlan_1.jpeg`](diagrams/TransactionPlan_1.jpeg) and [`
 | T5  | Ward allocation (nurse)                          | `Patient`, `Ward_boy`                                             | Assigns a patient to a ward without exceeding its capacity                                                                       |
 | T6  | Bill payment settlement (patient / reception)    | `Bill`                                                            | Marks the bill as paid and records the payment mode                                                                              |
 
-### 4.2 Schema additions needed
-
-T1, T2 and T4 work on the current schema. T3, T5 and T6 need columns or tables that don't exist yet:
-
-| Transaction | Missing                                                                                   | Why                                                                                                                                    |
-| ----------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| T3          | `Appointment.Status`                                                                      | To mark an appointment as completed                                                                                                    |
-| T5          | `Ward` table with a capacity, `Admission` table                                           | The only ward data today is the free-text `Ward_boy.Ward`. Nothing records which patient is in which ward, or how many beds a ward has |
-| T6          | `Bill.Payment_status`, `Bill.Paid_date`; `Payment_mode` allowed to be empty until payment | `Bill` has no paid / unpaid state, and `Payment_mode` currently has to be chosen when the bill is created                              |
-
-```sql
--- T3: appointment lifecycle
-ALTER TABLE Appointment
-    ADD COLUMN Status VARCHAR(20) NOT NULL DEFAULT 'Scheduled'
-        CHECK (Status IN ('Scheduled', 'Completed', 'Cancelled'));
-
--- T6: payment state (the existing CHECK on Payment_mode still applies once it is set)
-ALTER TABLE Bill
-    MODIFY Payment_mode VARCHAR(50) NULL,
-    ADD COLUMN Payment_status VARCHAR(10) NOT NULL DEFAULT 'Pending'
-        CHECK (Payment_status IN ('Pending', 'Paid')),
-    ADD COLUMN Paid_date DATE NULL,
-    ADD CHECK (Payment_status = 'Pending' OR Payment_mode IS NOT NULL);
-
--- T5: wards and admissions
-CREATE TABLE Ward (
-    Ward_id INT PRIMARY KEY AUTO_INCREMENT,
-    Ward_name VARCHAR(50) UNIQUE NOT NULL,
-    Capacity INT NOT NULL CHECK (Capacity > 0)
-);
-
-CREATE TABLE Admission (
-    Admission_id INT PRIMARY KEY AUTO_INCREMENT,
-    Patient_id INT NOT NULL,
-    Ward_id INT NOT NULL,
-    Nurse_id INT NOT NULL,
-    Admit_date DATE NOT NULL,
-    Discharge_date DATE,
-    CHECK (Discharge_date IS NULL OR Discharge_date >= Admit_date),
-    FOREIGN KEY (Patient_id) REFERENCES Patient(Patient_id) ON DELETE RESTRICT,
-    FOREIGN KEY (Ward_id) REFERENCES Ward(Ward_id) ON DELETE RESTRICT,
-    FOREIGN KEY (Nurse_id) REFERENCES Nurse(Employee_id) ON DELETE RESTRICT
-);
-```
-
-`Ward_boy.Ward` could then become a foreign key to `Ward(Ward_id)`. The plan lists `Ward_boy` under T5, but the ward boy only says which ward a staff member works in. The patient-to-ward link is `Admission`.
-
-With `Status` added, a cancelled appointment still occupies its slot because of the `UNIQUE` constraint. Either delete or reschedule the cancelled row, or drop the `UNIQUE` and rely on the slot trigger with a `Status <> 'Cancelled'` condition.
-
-### 4.3 How ACID is achieved
+### 4.2 How ACID will be achieved
 
 | Property        | How it's achieved in MySQL (InnoDB)                                                                                                                                                                                                                                                      |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -382,13 +331,13 @@ BEGIN
 END;
 ```
 
-### 4.5 Summary
+### 4.3 Summary
 
-| ID  | Procedure                       | Lock taken              | Prevents                                                    | Schema ready?                                     |
-| --- | ------------------------------- | ----------------------- | ----------------------------------------------------------- | ------------------------------------------------- |
-| T1  | `register_patient`              | (none)                  | Partial registration                                        | Yes                                               |
-| T2  | `book_appointment`              | Patient row, Doctor row | Double-booking                                              | Yes                                               |
-| T3  | `complete_appointment`          | Appointment row         | Prescription without a bill; wrong totals; completing twice | Needs `Appointment.Status`, `Bill.Payment_status` |
-| T4  | `onboard_doctor` (one per role) | (none)                  | Employee without a subclass row                             | Yes                                               |
-| T5  | `admit_patient`                 | Patient row, Ward row   | Over-capacity wards; double admission                       | Needs `Ward`, `Admission`                         |
-| T6  | `settle_bill`                   | Bill row                | Paying twice                                                | Needs `Bill.Payment_status`, `Paid_date`          |
+| ID  | Procedure                       | Lock taken              | Prevents                                                    |
+| --- | ------------------------------- | ----------------------- | ----------------------------------------------------------- |
+| T1  | `register_patient`              | (none)                  | Partial registration                                        |
+| T2  | `book_appointment`              | Patient row, Doctor row | Double-booking                                              |
+| T3  | `complete_appointment`          | Appointment row         | Prescription without a bill; wrong totals; completing twice |
+| T4  | `onboard_doctor` (one per role) | (none)                  | Employee without a subclass row                             |
+| T5  | `admit_patient`                 | Patient row, Ward row   | Over-capacity wards; double admission                       |
+| T6  | `settle_bill`                   | Bill row                | Paying twice                                                |
