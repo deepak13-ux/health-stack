@@ -290,7 +290,7 @@ begin
 
     if new.Bill_date < (
         select `Date`
-        from Appointment
+        from Appointmentnow
         where Appointment_id = new.Appointment_id
     ) then
         signal sqlstate '45000'
