@@ -1,7 +1,5 @@
--- run after schema/table.sql
 use healthstack;
 
--- remove triggers from the previous versions before recreating this set
 drop trigger if exists trg_employee_validate_before_insert;
 drop trigger if exists trg_employee_validate_before_update;
 drop trigger if exists trg_patient_validate_before_insert;
@@ -64,7 +62,6 @@ drop procedure if exists check_employee_role;
 
 DELIMITER //
 
--- an employee's role must match their subclass table
 create procedure check_employee_role(
     in p_emp_id int,
     in p_role varchar(20)
