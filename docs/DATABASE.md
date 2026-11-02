@@ -40,7 +40,7 @@ mysql -u root -p healthstack < seed/seed.sql
 | **Employee**     | `Employee_id` | Name (`First_name`, `Last_name`), `Gender`, `DOB`, `Date_join`, `Mail`, `Salary`                                     | `Name` is a composite attribute                                                |
 | **Doctor**       | (inherited)   | `License_no`                                                                                                         | Subclass of Employee                                                           |
 | **Nurse**        | (inherited)   | (none)                                                                                                               | Subclass of Employee                                                           |
-| **Ward_boy**     | (inherited)   | `Ward`                                                                                                               | Subclass of Employee                                                           |
+| **Ward_boy**     | (inherited)   | `Ward`                                                                                                               | Subclass of Employee; implemented as a link to the `Ward` table (see 1.5)     |
 | **Receptionist** | (inherited)   | `Desk_no`                                                                                                            | Subclass of Employee                                                           |
 | **Technician**   | (inherited)   | `Skill`                                                                                                              | Subclass of Employee                                                           |
 | **Pharmacist**   | (inherited)   | (none)                                                                                                               | Subclass of Employee                                                           |
@@ -89,9 +89,11 @@ These were deliberate. Update the diagram to match, or change the tables back.
    - `Doctor.Consultation_fee`.
    - `Pres_Details.Unit_price`: the medicine price at the time it was prescribed.
    - `Bill.Consultation_fee`.
+   - `Employee.Is_active`: false once an employee leaves (see 2.3).
 3. **`Contact` is a single column, but the diagram draws it as multivalued.** A faithful mapping would be a separate `Patient_Contact(Patient_id, Contact)` table.
-4. **Doctor's participation in _Belongs to_ is total in the diagram**, but `Doctor.Dept_id` allows NULL and is set to NULL when a department is deleted. Make it `NOT NULL` with `ON DELETE RESTRICT` to match the diagram.
-5. **Some total participations can't be enforced with plain constraints:**
+4. **Ward_boy's `Ward` is a relationship, not an attribute.** `Ward_boy.Ward_id` is a foreign key to a separate `Ward` table (`Ward_id`, `Ward_name`, `Capacity`), so a ward boy can only be assigned to a ward that exists. In the diagram this is an N : 1 _Assigned to_ relationship, with Ward_boy participating totally.
+5. **Appointment columns are renamed** to `App_date`, `App_time` and `App_status`, because `Date`, `Time` and `Status` are SQL keywords.
+6. **Some total participations can't be enforced with plain constraints:**
    - every patient having an appointment;
    - every employee having a subclass row;
    - every prescription having at least one medicine.
@@ -112,7 +114,8 @@ erDiagram
     Employee ||--o| Receptionist : "is a"
     Employee ||--o| Technician : "is a"
     Employee ||--o| Pharmacist : "is a"
-    Department |o--o{ Doctor : employs
+    Department ||--o{ Doctor : employs
+    Ward ||--o{ Ward_boy : "assigned to"
     Patient ||--o{ Appointment : books
     Doctor ||--o{ Appointment : attends
     Appointment ||--o| Prescription : "results in"
@@ -135,6 +138,7 @@ erDiagram
         varchar Mail UK
         decimal Salary
         varchar Role
+        boolean Is_active
     }
     Doctor {
         int Employee_id PK,FK
@@ -145,9 +149,14 @@ erDiagram
     Nurse {
         int Employee_id PK,FK
     }
+    Ward {
+        int Ward_id PK
+        varchar Ward_name UK
+        int Capacity
+    }
     Ward_boy {
         int Employee_id PK,FK
-        varchar Ward
+        int Ward_id FK
     }
     Receptionist {
         int Employee_id PK,FK
@@ -177,8 +186,9 @@ erDiagram
         int Appointment_id PK
         int Patient_id FK
         int Doctor_id FK
-        date Date
-        time Time
+        date App_date
+        time App_time
+        varchar App_status
     }
     Prescription {
         int Pres_id PK
@@ -213,14 +223,15 @@ erDiagram
 | Table                 | Primary key           | Foreign keys (on delete)                        | Other constraints                                                                                                                  |
 | --------------------- | --------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `Department`          | `Dept_id`             | (none)                                          | `Dept_name` unique, not null                                                                                                       |
-| `Employee`            | `Employee_id`         | (none)                                          | `Mail` unique; `Gender` must be Male, Female or Other; `Salary >= 0`; `Role` must be one of the six subclasses; `Date_join > DOB`  |
-| `Doctor`              | `Employee_id`         | `Employee` (cascade), `Department` (set null)   | `License_no` unique; `Consultation_fee >= 0`, default 0                                                                            |
+| `Employee`            | `Employee_id`         | (none)                                          | `Mail` unique; `Gender` must be Male, Female or Other; `Salary >= 0`; `Role` must be one of the six subclasses; `Date_join > DOB`; `Is_active` default true |
+| `Doctor`              | `Employee_id`         | `Employee` (cascade), `Department` (restrict)   | `License_no` unique; `Dept_id` not null; `Consultation_fee >= 0`, default 200                                                      |
 | `Nurse`, `Pharmacist` | `Employee_id`         | `Employee` (cascade)                            | (none)                                                                                                                             |
-| `Ward_boy`            | `Employee_id`         | `Employee` (cascade)                            | `Ward` not null                                                                                                                    |
+| `Ward`                | `Ward_id`             | (none)                                          | `Ward_name` unique, not null; `Capacity > 0`                                                                                       |
+| `Ward_boy`            | `Employee_id`         | `Employee` (cascade), `Ward` (restrict)         | `Ward_id` not null                                                                                                                 |
 | `Receptionist`        | `Employee_id`         | `Employee` (cascade)                            | `Desk_no` not null                                                                                                                 |
 | `Technician`          | `Employee_id`         | `Employee` (cascade)                            | `Skill` not null                                                                                                                   |
 | `Patient`             | `Patient_id`          | (none)                                          | `Gender` must be Male, Female or Other; `Contact` not null                                                                         |
-| `Appointment`         | `Appointment_id`      | `Patient` (restrict), `Doctor` (restrict)       | Unique (`Doctor_id`, `Date`, `Time`) and unique (`Patient_id`, `Date`, `Time`): no double-booking                                  |
+| `Appointment`         | `Appointment_id`      | `Patient` (restrict), `Doctor` (restrict)       | `App_status` must be Scheduled, Completed or Cancelled. Unique (`Doctor_id`, `App_date`, `App_time`, `Active_slot`) and the same for `Patient_id`: no double-booking. `Active_slot` is a generated column that is NULL for cancelled appointments, so a cancelled slot can be booked again |
 | `Prescription`        | `Pres_id`             | `Appointment` (restrict)                        | `Appointment_id` unique: one prescription per appointment                                                                          |
 | `Medicine`            | `Med_id`              | (none)                                          | `Price >= 0`                                                                                                                       |
 | `Pres_Details`        | (`Pres_id`, `Med_id`) | `Prescription` (cascade), `Medicine` (restrict) | `Quantity > 0`; `Unit_price >= 0`                                                                                                  |
@@ -230,6 +241,7 @@ erDiagram
 
 - **Old bills don't change when medicine prices change.** `Pres_Details.Unit_price` records the price at the time of prescribing. The bill is calculated from that recorded price, not from `Medicine.Price`.
 - **Bill total** = `Consultation_fee` + sum of (`Quantity` × `Unit_price`) for the appointment's prescription.
+- **Employees are deactivated, not deleted.** Deleting an employee who has appointments or admissions is blocked by `ON DELETE RESTRICT`, which keeps their history. Set `Is_active = false` instead; new appointments and admissions then reject that doctor or nurse.
 - **The script can be re-run.** `table.sql` drops existing tables in reverse dependency order before creating them.
 
 ---
@@ -260,11 +272,13 @@ This set matches the current `table.sql`.
 | `trg_employee_role_lock`                                                 | Employee, before update              | Blocks a change to `Role` while the employee still has a row in a subclass table                                                                                                    |
 | `trg_pres_details_bi`                                                    | Pres_Details, before insert          | Sets `Unit_price` from `Medicine.Price`. Blocks adding medicines once the appointment is billed                                                                                     |
 | `trg_pres_details_bu` / `_bd`                                            | Pres_Details, before update / delete | Blocks changes once billed. On update, looks the price up again only if the medicine itself changed                                                                                 |
-| `trg_prescription_bi`                                                    | Prescription, before insert          | `Pres_date` cannot be before the appointment date                                                                                                                                   |
+| `trg_prescription_bi` / `_bu`                                            | Prescription, before insert / update | Rejects a cancelled appointment. `Pres_date` cannot be before the appointment date                                                                                                  |
 | `trg_prescription_bd`                                                    | Prescription, before delete          | Blocks deleting a billed prescription. This is needed because MySQL does **not** fire triggers on rows removed by a cascade, so the `Pres_Details` delete trigger would be bypassed |
-| `trg_bill_bi`                                                            | Bill, before insert                  | Copies the doctor's `Consultation_fee` and sets `Bill_amount` = fee + medicine total. Rejects a bill dated before the appointment                                                   |
+| `trg_bill_bi`                                                            | Bill, before insert                  | Rejects a cancelled appointment. Copies the doctor's `Consultation_fee` and sets `Bill_amount` = fee + medicine total. Rejects a bill dated before the appointment                    |
 | `trg_bill_bu`                                                            | Bill, before update                  | Lets you correct `Bill_date` and `Payment_mode`. Keeps both amounts unchanged, and blocks moving a bill to another appointment                                                      |
 | `trg_patient_dob_bi` / `_bu`                                             | Patient, before insert / update      | DOB cannot be in the future                                                                                                                                                         |
+| `trg_appointment_bi` / `_bu`                                             | Appointment, before insert / update  | The doctor must be active. An appointment with a prescription or bill cannot be cancelled                                                                                           |
+| `trg_admission_bi`                                                       | Admission, before insert             | The nurse must be active                                                                                                                                                            |
 
 ### 3.3 Known issues
 
@@ -283,7 +297,6 @@ The bill and prescription-lock triggers in `triggers.sql` don't match the curren
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | Log changes to medicine prices and salaries (old value, new value, user, time) | A `Price_log` / `Salary_log` table and an `AFTER UPDATE` trigger |
 | Reduce medicine stock when medicines are prescribed; reject when out of stock  | A `Medicine.Stock` column                                        |
-| Reject prescriptions and bills for cancelled appointments                      | `Appointment.Status` (see 4.2)                                   |
 | Keep ward occupancy within capacity                                            | `Ward` and `Admission` tables (see T5)                           |
 | Employees at least 18 years old at joining                                     | Nothing new; an extra check in the employee trigger              |
 | Add a note to `Patient.History` when a prescription is created                 | Nothing new; an `AFTER INSERT` trigger on Pres_Details           |

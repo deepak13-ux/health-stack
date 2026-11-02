@@ -35,6 +35,7 @@ create table Employee (
     Mail varchar(100) unique not null,
     Salary decimal(10, 2) not null,
     Role varchar(20) not null,
+    Is_active boolean not null default true,
     Primary key (Employee_id),
     check (Gender in ('Male', 'Female', 'Other')),
     check (Salary >= 0),
@@ -45,11 +46,11 @@ create table Employee (
 create table Doctor (
     Employee_id int,
     License_no varchar(50) unique not null,
-    Dept_id int,
+    Dept_id int not null,
     Consultation_fee decimal(10, 2) not null default 200,
     Primary key (Employee_id),
     Foreign key (Employee_id) references Employee(Employee_id) on delete cascade,
-    Foreign key (Dept_id) references Department(Dept_id) on delete set null,
+    Foreign key (Dept_id) references Department(Dept_id) on delete restrict,
     check (Consultation_fee >= 0)
 );
 
@@ -115,15 +116,16 @@ create table Appointment (
     Appointment_id int,
     Patient_id int not null,
     Doctor_id int not null,
-    Date date not null,
-    Time time not null,
-    Status varchar(20) not null default 'Scheduled',
-    unique (Doctor_id, Date, Time),
-    unique (Patient_id, Date, Time),
+    App_date date not null,
+    App_time time not null,
+    App_status varchar(20) not null default 'Scheduled',
+    Active_slot tinyint as (if(App_status = 'Cancelled', null, 1)) stored,
+    unique (Doctor_id, App_date, App_time, Active_slot),
+    unique (Patient_id, App_date, App_time, Active_slot),
     Primary key (Appointment_id),
     Foreign key (Patient_id) references Patient(Patient_id) on delete restrict,
     Foreign key (Doctor_id) references Doctor(Employee_id) on delete restrict,
-    check (Status in ('Scheduled', 'Completed', 'Cancelled'))
+    check (App_status in ('Scheduled', 'Completed', 'Cancelled'))
 );
 
 create table Prescription (

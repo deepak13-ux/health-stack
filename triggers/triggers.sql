@@ -57,6 +57,9 @@ drop trigger if exists trg_bill_bi;
 drop trigger if exists trg_bill_bu;
 drop trigger if exists trg_patient_dob_bi;
 drop trigger if exists trg_patient_dob_bu;
+drop trigger if exists trg_appointment_bi;
+drop trigger if exists trg_appointment_bu;
+drop trigger if exists trg_admission_bi;
 
 drop procedure if exists check_employee_role;
 
@@ -210,7 +213,17 @@ begin
         select 1
         from Appointment
         where Appointment_id = new.Appointment_id
-          and new.Pres_date < `Date`
+          and App_status = 'Cancelled'
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'cannot prescribe for a cancelled appointment';
+    end if;
+
+    if exists (
+        select 1
+        from Appointment
+        where Appointment_id = new.Appointment_id
+          and new.Pres_date < App_date
     ) then
         signal sqlstate '45000'
             set message_text = 'prescription date cannot be before the appointment date';
@@ -225,7 +238,17 @@ begin
         select 1
         from Appointment
         where Appointment_id = new.Appointment_id
-          and new.Pres_date < `Date`
+          and App_status = 'Cancelled'
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'cannot prescribe for a cancelled appointment';
+    end if;
+
+    if exists (
+        select 1
+        from Appointment
+        where Appointment_id = new.Appointment_id
+          and new.Pres_date < App_date
     ) then
         signal sqlstate '45000'
             set message_text = 'prescription date cannot be before the appointment date';
@@ -252,8 +275,18 @@ create trigger trg_bill_bi
 before insert on Bill
 for each row
 begin
+    if exists (
+        select 1
+        from Appointment
+        where Appointment_id = new.Appointment_id
+          and App_status = 'Cancelled'
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'cannot bill a cancelled appointment';
+    end if;
+
     if new.Bill_date < (
-        select `Date`
+        select App_date
         from Appointment
         where Appointment_id = new.Appointment_id
     ) then
@@ -286,7 +319,7 @@ begin
     end if;
 
     if new.Bill_date < (
-        select `Date`
+        select App_date
         from Appointment
         where Appointment_id = new.Appointment_id
     ) then
@@ -316,6 +349,62 @@ begin
     if new.DOB > curdate() then
         signal sqlstate '45000'
             set message_text = 'dob cannot be in the future';
+    end if;
+end //
+
+-- appointments can only be booked with doctors who still work here
+create trigger trg_appointment_bi
+before insert on Appointment
+for each row
+begin
+    if not exists (
+        select 1
+        from Employee
+        where Employee_id = new.Doctor_id
+          and Is_active
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'doctor is no longer active';
+    end if;
+end //
+
+-- an appointment that already has a prescription or bill cannot be cancelled
+create trigger trg_appointment_bu
+before update on Appointment
+for each row
+begin
+    if new.Doctor_id <> old.Doctor_id and not exists (
+        select 1
+        from Employee
+        where Employee_id = new.Doctor_id
+          and Is_active
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'doctor is no longer active';
+    end if;
+
+    if new.App_status = 'Cancelled' and old.App_status <> 'Cancelled' and (
+           exists (select 1 from Prescription where Appointment_id = old.Appointment_id)
+        or exists (select 1 from Bill where Appointment_id = old.Appointment_id)
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'appointment already has a prescription or bill';
+    end if;
+end //
+
+-- patients can only be assigned to nurses who still work here
+create trigger trg_admission_bi
+before insert on Admission
+for each row
+begin
+    if not exists (
+        select 1
+        from Employee
+        where Employee_id = new.Nurse_id
+          and Is_active
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'nurse is no longer active';
     end if;
 end //
 
