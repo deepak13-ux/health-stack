@@ -1,157 +1,189 @@
-CREATE DATABASE IF NOT EXISTS healthstack;
-USE healthstack;
+create database if not exists Healthstack;
+use Healthstack;
 
-DROP TABLE IF EXISTS Bill;
-DROP TABLE IF EXISTS Pres_Details;
-DROP TABLE IF EXISTS Medicine;
-DROP TABLE IF EXISTS Prescription;
-DROP TABLE IF EXISTS Appointment;
-DROP TABLE IF EXISTS Patient;
-DROP TABLE IF EXISTS Pharmacist;
-DROP TABLE IF EXISTS Technician;
-DROP TABLE IF EXISTS Receptionist;
-DROP TABLE IF EXISTS Ward_boy;
-DROP TABLE IF EXISTS Nurse;
-DROP TABLE IF EXISTS Doctor;
-DROP TABLE IF EXISTS Employee;
-DROP TABLE IF EXISTS Department;
+drop tables if exists Admission;
+drop tables if exists Bill;
+drop tables if exists Pres_Details;
+drop tables if exists Medicine;
+drop tables if exists Prescription;
+drop tables if exists Appointment;
+drop tables if exists Patient;
+drop tables if exists Pharmacist;
+drop tables if exists Technician;
+drop tables if exists Receptionist;
+drop tables if exists Ward_boy;
+drop tables if exists Ward;
+drop tables if exists Nurse;
+drop tables if exists Doctor;
+drop tables if exists Employee;
+drop tables if exists Department;
 
-CREATE TABLE Department (
-    Dept_id INT PRIMARY KEY AUTO_INCREMENT,
-    Dept_name VARCHAR(100) UNIQUE NOT NULL,
-    Description TEXT
+create table Department (
+    Dept_id int,
+    Dept_name varchar(100) unique not null,
+    Description text,
+    Primary key (Dept_id)
 );
 
-CREATE TABLE Employee (
-    Employee_id INT PRIMARY KEY AUTO_INCREMENT,
-    First_name VARCHAR(50) NOT NULL,
-    Last_name VARCHAR(50) NOT NULL,
-    Gender VARCHAR(10) NOT NULL CHECK (Gender IN ('Male', 'Female', 'Other')),
-    DOB DATE NOT NULL,
-    Date_join DATE NOT NULL,
-    Mail VARCHAR(100) UNIQUE NOT NULL,
-    Salary DECIMAL(10, 2) NOT NULL CHECK (Salary >= 0),
-    Role VARCHAR(20) NOT NULL CHECK (Role IN ('Doctor', 'Nurse', 'Ward_boy', 'Receptionist', 'Technician', 'Pharmacist')),
-    CHECK (Date_join > DOB)
+create table Employee (
+    Employee_id int,
+    First_name varchar(50) not null,
+    Last_name varchar(50) not null,
+    Gender varchar(10) not null,
+    DOB date not null,
+    Date_join date not null,
+    Mail varchar(100) unique not null,
+    Salary decimal(10, 2) not null,
+    Role varchar(20) not null,
+    Primary key (Employee_id),
+    check (Gender in ('Male', 'Female', 'Other')),
+    check (Salary >= 0),
+    check (Role in ('Doctor', 'Nurse', 'Ward_boy', 'Receptionist', 'Technician', 'Pharmacist')),
+    check (Date_join > DOB)
 );
 
-CREATE TABLE Doctor (
-    Employee_id INT PRIMARY KEY,
-    License_no VARCHAR(50) UNIQUE NOT NULL,
-    Dept_id INT,
-    Consultation_fee DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (Consultation_fee >= 0),
-    FOREIGN KEY (Employee_id) REFERENCES Employee(Employee_id) ON DELETE CASCADE,
-    FOREIGN KEY (Dept_id) REFERENCES Department(Dept_id) ON DELETE SET NULL
+create table Doctor (
+    Employee_id int,
+    License_no varchar(50) unique not null,
+    Dept_id int,
+    Consultation_fee decimal(10, 2) not null default 200,
+    Primary key (Employee_id),
+    Foreign key (Employee_id) references Employee(Employee_id) on delete cascade,
+    Foreign key (Dept_id) references Department(Dept_id) on delete set null,
+    check (Consultation_fee >= 0)
 );
 
-CREATE TABLE Nurse (
-    Employee_id INT PRIMARY KEY,
-    FOREIGN KEY (Employee_id) REFERENCES Employee(Employee_id) ON DELETE CASCADE
+create table Nurse (
+    Employee_id int,
+    Primary key (Employee_id),
+    Foreign key (Employee_id) references Employee(Employee_id) on delete cascade
 );
 
-CREATE TABLE Ward_boy (
-    Employee_id INT PRIMARY KEY,
-    Ward VARCHAR(50) NOT NULL,
-    FOREIGN KEY (Employee_id) REFERENCES Employee(Employee_id) ON DELETE CASCADE
+create table Ward (
+    Ward_id int,
+    Ward_name varchar(50) unique not null,
+    Capacity int not null,
+    Primary key (Ward_id),
+    check (Capacity > 0)
 );
 
-CREATE TABLE Receptionist (
-    Employee_id INT PRIMARY KEY,
-    Desk_no VARCHAR(20) NOT NULL,
-    FOREIGN KEY (Employee_id) REFERENCES Employee(Employee_id) ON DELETE CASCADE
+create table Ward_boy (
+    Employee_id int,
+    Ward_id int not null,
+    Primary key (Employee_id),
+    Foreign key (Employee_id) references Employee(Employee_id) on delete cascade,
+    Foreign key (Ward_id) references Ward(Ward_id) on delete restrict
 );
 
-CREATE TABLE Technician (
-    Employee_id INT PRIMARY KEY,
-    Skill VARCHAR(100) NOT NULL,
-    FOREIGN KEY (Employee_id) REFERENCES Employee(Employee_id) ON DELETE CASCADE
+create table Receptionist (
+    Employee_id int,
+    Desk_no varchar(20) not null,
+    Primary key (Employee_id),
+    Foreign key (Employee_id) references Employee(Employee_id) on delete cascade
 );
 
-CREATE TABLE Pharmacist (
-    Employee_id INT PRIMARY KEY,
-    FOREIGN KEY (Employee_id) REFERENCES Employee(Employee_id) ON DELETE CASCADE
+create table Technician (
+    Employee_id int,
+    Skill varchar(100) not null,
+    Primary key (Employee_id),
+    Foreign key (Employee_id) references Employee(Employee_id) on delete cascade
 );
 
-CREATE TABLE Patient (
-    Patient_id INT PRIMARY KEY AUTO_INCREMENT,
-    First_name VARCHAR(50) NOT NULL,
-    Last_name VARCHAR(50) NOT NULL,
-    Gender VARCHAR(10) NOT NULL CHECK (Gender IN ('Male', 'Female', 'Other')),
-    DOB DATE NOT NULL,
-    Mail VARCHAR(100),
-    Contact VARCHAR(20) NOT NULL,
-    Street VARCHAR(100),
-    City VARCHAR(50),
-    State VARCHAR(50),
-    History TEXT
+create table Pharmacist (
+    Employee_id int,
+    Primary key (Employee_id),
+    Foreign key (Employee_id) references Employee(Employee_id) on delete cascade
 );
 
-CREATE TABLE Appointment (
-    Appointment_id INT PRIMARY KEY AUTO_INCREMENT,
-    Patient_id INT NOT NULL,
-    Doctor_id INT NOT NULL,
-    Date DATE NOT NULL,
-    Time TIME NOT NULL,
-    Status VARCHAR(20) NOT NULL DEFAULT 'Scheduled' CHECK (Status IN ('Scheduled', 'Completed', 'Cancelled')),
-    UNIQUE (Doctor_id, Date, Time),
-    UNIQUE (Patient_id, Date, Time),
-    FOREIGN KEY (Patient_id) REFERENCES Patient(Patient_id) ON DELETE RESTRICT,
-    FOREIGN KEY (Doctor_id) REFERENCES Doctor(Employee_id) ON DELETE RESTRICT
+create table Patient (
+    Patient_id int,
+    First_name varchar(50) not null,
+    Last_name varchar(50) not null,
+    Gender varchar(10) not null,
+    DOB date not null,
+    Mail varchar(100),
+    Contact varchar(20) not null,
+    Street varchar(100),
+    City varchar(50),
+    State varchar(50),
+    History text,
+    Primary key (Patient_id),
+    check (Gender in ('Male', 'Female', 'Other'))
 );
 
-CREATE TABLE Prescription (
-    Pres_id INT PRIMARY KEY AUTO_INCREMENT,
-    Appointment_id INT UNIQUE NOT NULL,
-    Pres_date DATE NOT NULL,
-    FOREIGN KEY (Appointment_id) REFERENCES Appointment(Appointment_id) ON DELETE RESTRICT
+create table Appointment (
+    Appointment_id int,
+    Patient_id int not null,
+    Doctor_id int not null,
+    Date date not null,
+    Time time not null,
+    Status varchar(20) not null default 'Scheduled',
+    unique (Doctor_id, Date, Time),
+    unique (Patient_id, Date, Time),
+    Primary key (Appointment_id),
+    Foreign key (Patient_id) references Patient(Patient_id) on delete restrict,
+    Foreign key (Doctor_id) references Doctor(Employee_id) on delete restrict,
+    check (Status in ('Scheduled', 'Completed', 'Cancelled'))
 );
 
-CREATE TABLE Medicine (
-    Med_id INT PRIMARY KEY AUTO_INCREMENT,
-    Med_name VARCHAR(100) NOT NULL,
-    Price DECIMAL(10, 2) NOT NULL CHECK (Price >= 0)
+create table Prescription (
+    Pres_id int,
+    Appointment_id int unique not null,
+    Pres_date date not null,
+    Primary key (Pres_id),
+    Foreign key (Appointment_id) references Appointment(Appointment_id) on delete restrict
 );
 
-CREATE TABLE Pres_Details (
-    Pres_id INT NOT NULL,
-    Med_id INT NOT NULL,
-    Dosage VARCHAR(50) NOT NULL,
-    Quantity INT NOT NULL CHECK (Quantity > 0),
-    Frequency VARCHAR(50) NOT NULL,
-    Unit_price DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (Unit_price >= 0),
-    PRIMARY KEY (Pres_id, Med_id),
-    FOREIGN KEY (Pres_id) REFERENCES Prescription(Pres_id) ON DELETE CASCADE,
-    FOREIGN KEY (Med_id) REFERENCES Medicine(Med_id) ON DELETE RESTRICT
+create table Medicine (
+    Med_id int,
+    Med_name varchar(100) not null,
+    Price decimal(10, 2) not null,
+    Primary key (Med_id),
+    check (Price >= 0)
 );
 
-CREATE TABLE Bill (
-    Bill_id INT PRIMARY KEY AUTO_INCREMENT,
-    Appointment_id INT UNIQUE NOT NULL,
-    Consultation_fee DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (Consultation_fee >= 0),
-    Bill_amount DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (Bill_amount >= 0),
-    Bill_date DATE NOT NULL,
-    Paid_date DATE NULL,
-    Payment_status VARCHAR(10) NOT NULL DEFAULT 'Pending' CHECK (Payment_status IN ('Pending', 'Paid')),
-    Payment_mode VARCHAR(50) NULL CHECK (Payment_mode IN ('Cash', 'Card', 'UPI', 'Insurance', 'NetBanking')),
-    CHECK (Payment_status = 'Pending' OR Payment_mode IS NOT NULL),
-    FOREIGN KEY (Appointment_id) REFERENCES Appointment(Appointment_id) ON DELETE RESTRICT
+create table Pres_Details (
+    Pres_id int not null,
+    Med_id int not null,
+    Dosage varchar(50) not null,
+    Quantity int not null,
+    Frequency varchar(50) not null,
+    Unit_price decimal(10, 2) not null default 0,
+    Primary key (Pres_id, Med_id),
+    Foreign key (Pres_id) references Prescription(Pres_id) on delete cascade,
+    Foreign key (Med_id) references Medicine(Med_id) on delete restrict,
+    check (Quantity > 0),
+    check (Unit_price >= 0)
 );
 
-CREATE TABLE Ward (
-    Ward_id INT PRIMARY KEY AUTO_INCREMENT,
-    Ward_name VARCHAR(50) UNIQUE NOT NULL,
-    Capacity INT NOT NULL CHECK (Capacity > 0)
+create table Bill (
+    Bill_id int,
+    Appointment_id int unique not null,
+    Consultation_fee decimal(10, 2) not null default 200,
+    Bill_amount decimal(10, 2) not null default 200,
+    Bill_date date not null,
+    Paid_date date null,
+    Payment_status varchar(10) not null default 'Pending',
+    Payment_mode varchar(50) null,
+    Primary key (Bill_id),
+    Foreign key (Appointment_id) references Appointment(Appointment_id) on delete restrict,
+    check (Consultation_fee >= 0),
+    check (Bill_amount >= 0),
+    check (Payment_status in ('Pending', 'Paid')),
+    check (Payment_mode in ('Cash', 'Card', 'UPI', 'Insurance', 'NetBanking')),
+    check (Payment_status = 'Pending' or Payment_mode is not null)
 );
 
-CREATE TABLE Admission (
-    Admission_id INT PRIMARY KEY AUTO_INCREMENT,
-    Patient_id INT NOT NULL,
-    Ward_id INT NOT NULL,
-    Nurse_id INT NOT NULL,
-    Admit_date DATE NOT NULL,
-    Discharge_date DATE,
-    CHECK (Discharge_date IS NULL OR Discharge_date >= Admit_date),
-    FOREIGN KEY (Patient_id) REFERENCES Patient(Patient_id) ON DELETE RESTRICT,
-    FOREIGN KEY (Ward_id) REFERENCES Ward(Ward_id) ON DELETE RESTRICT,
-    FOREIGN KEY (Nurse_id) REFERENCES Nurse(Employee_id) ON DELETE RESTRICT
+create table Admission (
+    Admission_id int,
+    Patient_id int not null,
+    Ward_id int not null,
+    Nurse_id int not null,
+    Admit_date date not null,
+    Discharge_date date,
+    Primary key (Admission_id),
+    Foreign key (Patient_id) references Patient(Patient_id) on delete restrict,
+    Foreign key (Ward_id) references Ward(Ward_id) on delete restrict,
+    Foreign key (Nurse_id) references Nurse(Employee_id) on delete restrict,
+    check (Discharge_date is null or Discharge_date >= Admit_date)
 );
