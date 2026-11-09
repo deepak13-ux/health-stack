@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+:root {
+  color-scheme: light;
+  --canvas: #f5f9fc;
+  --surface: #ffffff;
+  --surface-blue: #eaf5ff;
+  --blue-border: #c9e5fa;
+  --primary: #1768ac;
+  --primary-hover: #12558e;
+  --primary-pressed: #0f4676;
+  --lime: #d9f279;
+  --lime-hover: #cee964;
+  --lime-ink: #334513;
+  --ink: #17324d;
+  --muted: #52677b;
+  --border: #dce6ee;
+  --control-border: #7a8fa3;
+  --focus: #1768ac;
+  --success-bg: #eaf6ed;
+  --success-ink: #24633a;
+  --warning-bg: #fff4d6;
+  --warning-ink: #785400;
+  --danger-bg: #fdedee;
+  --danger-ink: #a12b35;
+  --neutral-bg: #edf2f6;
+  --neutral-ink: #43586b;
+}
+
+@layer base {
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--blue-border);
+    color: var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
