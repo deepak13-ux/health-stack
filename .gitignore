@@ -1,2 +1,5 @@
+backend/*.env
+backend/myref.py
+
 *.env
 *.zip
