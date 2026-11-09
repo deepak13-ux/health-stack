@@ -11,8 +11,18 @@ create trigger trg_bill_bi
 before insert on Bill
 for each row
 begin
+    if exists (
+        select 1
+        from Appointment
+        where Appointment_id = new.Appointment_id
+          and App_status = 'Cancelled'
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'cannot bill a cancelled appointment';
+    end if;
+
     if new.Bill_date < (
-        select `Date`
+        select App_date
         from Appointment
         where Appointment_id = new.Appointment_id
     ) then
@@ -45,7 +55,7 @@ begin
     end if;
 
     if new.Bill_date < (
-        select `Date`
+        select App_date
         from Appointment
         where Appointment_id = new.Appointment_id
     ) then

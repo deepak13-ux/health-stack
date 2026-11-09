@@ -83,7 +83,17 @@ begin
         select 1
         from Appointment
         where Appointment_id = new.Appointment_id
-          and new.Pres_date < `Date`
+          and App_status = 'Cancelled'
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'cannot prescribe for a cancelled appointment';
+    end if;
+
+    if exists (
+        select 1
+        from Appointment
+        where Appointment_id = new.Appointment_id
+          and new.Pres_date < App_date
     ) then
         signal sqlstate '45000'
             set message_text = 'prescription date cannot be before the appointment date';
@@ -98,7 +108,17 @@ begin
         select 1
         from Appointment
         where Appointment_id = new.Appointment_id
-          and new.Pres_date < `Date`
+          and App_status = 'Cancelled'
+    ) then
+        signal sqlstate '45000'
+            set message_text = 'cannot prescribe for a cancelled appointment';
+    end if;
+
+    if exists (
+        select 1
+        from Appointment
+        where Appointment_id = new.Appointment_id
+          and new.Pres_date < App_date
     ) then
         signal sqlstate '45000'
             set message_text = 'prescription date cannot be before the appointment date';

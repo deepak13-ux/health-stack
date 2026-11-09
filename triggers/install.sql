@@ -1,7 +1,8 @@
 use healthstack;
 
-source triggers/01_employee_integrity.sql;
-source triggers/02_date_validation.sql;
-source triggers/03_prescription_integrity.sql;
-source triggers/04_billing_integrity.sql;
+source triggers/employee.sql;
+source triggers/date_validation.sql;
+source triggers/prescription.sql;
+source triggers/billing.sql;
+source triggers/appointment.sql;
 
