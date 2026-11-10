@@ -1,76 +1,12 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
-import * as api from "../../api/api";
-import {
-  Badge,
-  Button,
-  Card,
-  Empty,
-  Loading,
-  PageHeader,
-  Table,
-  fmtDate,
-} from "../../components/ui";
-
+import * as api from '../../api/api';
+import { useRemote } from '../../useRemote';
+import { RemoteData } from '../../components/RemoteData';
+import { Badge, Card, PageHeader, Table, fmtDate } from '../../components/ui';
 export default function MyAppointments() {
-  const { user } = useAuth();
-  const [rows, setRows] = useState(null);
-  const load = () => api.listMyAppointments(user.id).then(setRows);
-  useEffect(() => {
-    load(); /* eslint-disable-next-line */
-  }, []);
-
-  const cancel = async (a) => {
-    if (!window.confirm(`Cancel your appointment with ${a.doctor.name}?`))
-      return;
-    await api.cancelMyAppointment(a.id);
-    load();
-  };
-  return (
-    <>
-      <PageHeader
-        title="My appointments"
-        description="Upcoming and past visits."
-        action={
-          <Link to="/patient/doctors">
-            <Button>Book appointment</Button>
-          </Link>
-        }
-      />
-      <Card>
-        {!rows ? (
-          <Loading />
-        ) : rows.length === 0 ? (
-          <Empty title="No appointments yet.">
-            Find a doctor to book your first visit.
-          </Empty>
-        ) : (
-          <Table
-            caption="My appointments"
-            heads={["Date", "Time", "Doctor", "Department", "Status", ""]}
-          >
-            {rows.map((a) => (
-              <tr key={a.id}>
-                <td>{fmtDate(a.date)}</td>
-                <td className="tabular-nums">{a.time}</td>
-                <td>{a.doctor.name}</td>
-                <td>{a.department?.name}</td>
-                <td>
-                  <Badge status={a.status} />
-                </td>
-                <td>
-                  {["scheduled", "checked_in"].includes(a.status) && (
-                    <Button variant="ghost" onClick={() => cancel(a)}>
-                      Cancel
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </Table>
-        )}
-      </Card>
-    </>
-  );
+  const state = useRemote(api.listAppointments);
+  return <><PageHeader title="Active appointments" description="Your upcoming visits and consultations in progress." />
+    <Card><RemoteData state={state}>{(rows) => rows.length ? <Table caption="Active appointments" heads={['Date', 'Time', 'Doctor', 'Status']}>
+      {rows.map((a) => <tr key={a.id}><td>{fmtDate(a.date)}</td><td>{a.time}</td><td>{a.doctorName}</td><td><Badge status={a.status} /></td></tr>)}
+    </Table> : <p>No active appointments. Choose a doctor to book a visit.</p>}</RemoteData></Card>
+  </>;
 }

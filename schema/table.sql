@@ -46,6 +46,7 @@ create table Employee (
 create table Doctor (
     Employee_id int,
     License_no varchar(50) unique not null,
+    Current_appointment_id int null,
     Dept_id int not null,
     Consultation_fee decimal(10, 2) not null default 200,
     primary key (Employee_id),
@@ -97,7 +98,7 @@ create table Pharmacist (
 );
 
 create table Patient (
-    Patient_id int,
+    Patient_id int auto_increment,
     First_name varchar(50) not null,
     Last_name varchar(50) not null,
     Gender varchar(10) not null,
@@ -113,7 +114,7 @@ create table Patient (
 );
 
 create table Appointment (
-    Appointment_id int,
+    Appointment_id int auto_increment,
     Patient_id int not null,
     Doctor_id int not null,
     App_date date not null,
@@ -129,9 +130,11 @@ create table Appointment (
 );
 
 create table Prescription (
-    Pres_id int,
+    Pres_id int auto_increment,
     Appointment_id int unique not null,
     Pres_date date not null,
+    Notes text,
+    Valid_until date not null,
     primary key (Pres_id),
     foreign key (Appointment_id) references Appointment(Appointment_id) on delete restrict
 );
@@ -159,7 +162,7 @@ create table Pres_Details (
 );
 
 create table Bill (
-    Bill_id int,
+    Bill_id int auto_increment,
     Appointment_id int unique not null,
     Consultation_fee decimal(10, 2) not null default 200,
     Bill_amount decimal(10, 2) not null default 200,
@@ -188,4 +191,21 @@ create table Admission (
     foreign key (Ward_id) references Ward(Ward_id) on delete restrict,
     foreign key (Nurse_id) references Nurse(Employee_id) on delete restrict,
     check (Discharge_date is null or Discharge_date >= Admit_date)
+);
+
+-- Login accounts and sessions for patients, doctors and pharmacists.
+CREATE TABLE IF NOT EXISTS AuthAccount (
+    Account_id INT AUTO_INCREMENT PRIMARY KEY,
+    Email VARCHAR(100) NOT NULL UNIQUE,
+    Password_hash VARCHAR(255) NOT NULL,
+    Role ENUM('patient','doctor','pharmacist') NOT NULL,
+    User_id INT NOT NULL,
+    UNIQUE (Role, User_id)
+);
+-- User_id is Patient.Patient_id for patients, Employee.Employee_id for staff.
+CREATE TABLE IF NOT EXISTS AuthSession (
+    Token_hash CHAR(64) PRIMARY KEY,
+    Account_id INT NOT NULL,
+    Expires_at DATETIME NOT NULL,
+    FOREIGN KEY (Account_id) REFERENCES AuthAccount(Account_id) ON DELETE CASCADE
 );

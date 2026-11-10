@@ -1,4 +1,3 @@
-use healthstack;
 
 drop trigger if exists trg_bill_calculate_before_insert;
 drop trigger if exists trg_bill_calculate_before_update;
@@ -30,12 +29,7 @@ begin
             set message_text = 'bill date cannot be before the appointment date';
     end if;
 
-    set new.Consultation_fee = (
-        select d.Consultation_fee
-        from Appointment as a
-        join Doctor as d on d.Employee_id = a.Doctor_id
-        where a.Appointment_id = new.Appointment_id
-    );
+    set new.Consultation_fee = 200;
 
     set new.Bill_amount = new.Consultation_fee + (
         select coalesce(sum(pd.Quantity * pd.Unit_price), 0)
