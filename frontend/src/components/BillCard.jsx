@@ -1,7 +1,9 @@
+import { billBalance } from "../lib/appointments";
 import { Printer } from "lucide-react";
 import { Badge, Button, inr } from "./ui";
 
 export default function BillCard({ bill, onPay }) {
+  const paid = bill.status === 'paid' ? Number(bill.total) : 0;
   return (
     <div className="border border-line rounded-2xl bg-white p-5">
       <div className="flex justify-between items-start mb-4">
@@ -42,12 +44,16 @@ export default function BillCard({ bill, onPay }) {
           </tr>
         </tfoot>
       </table>
+      <dl className="border-t border-line pt-3 mb-4 tabular-nums">
+        <div className="flex justify-between"><dt>Paid</dt><dd>{inr(paid)}</dd></div>
+        <div className="flex justify-between font-semibold"><dt>Outstanding</dt><dd>{inr(billBalance(bill))}</dd></div>
+      </dl>
       <div className="flex gap-2 no-print">
         <Button variant="secondary" onClick={() => window.print()}>
           <Printer size={16} /> Print
         </Button>
-        {bill.status === "unpaid" && onPay && (
-          <Button onClick={() => onPay(bill)}>Pay {inr(bill.total)}</Button>
+        {billBalance(bill) > 0 && onPay && (
+          <Button onClick={() => onPay(bill)}>Pay {inr(billBalance(bill))}</Button>
         )}
       </div>
     </div>

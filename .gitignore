@@ -3,3 +3,6 @@ backend/myref.py
 
 *.env
 *.zip
+
+__pycache__/
+*.pyc

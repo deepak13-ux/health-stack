@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
 export function Button({
@@ -147,17 +147,40 @@ export const Loading = () => (
 );
 
 export function Modal({ title, onClose, children, wide }) {
+  const dialog = useRef(null);
+  const close = useRef(onClose);
+  useEffect(() => { close.current = onClose; }, [onClose]);
   useEffect(() => {
-    const k = (e) => e.key === "Escape" && onClose();
+    const previous = document.activeElement;
+    const container = dialog.current;
+    const controls = () => [...container.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')].filter((el) => el.getClientRects().length);
+    (controls()[0] || container).focus();
+    const k = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); close.current(); }
+      if (e.key !== "Tab") return;
+      const items = controls();
+      if (!items.length) { e.preventDefault(); container.focus(); return; }
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === container)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [onClose]);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", k);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, []);
   return (
     <div
       className="fixed inset-0 z-50 bg-ink/40 grid place-items-center p-4"
       onMouseDown={onClose}
     >
       <div
+        ref={dialog}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -204,7 +227,8 @@ export const inr = (n) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(n);
 export const fmtDate = (d) =>
   new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", {

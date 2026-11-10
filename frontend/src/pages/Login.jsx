@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth, homeFor } from "../context/AuthContext";
-import { Button, Field, Input } from "../components/ui";
+import { Button, Field, Input, Select } from "../components/ui";
 
 export default function Login() {
   const { user, login } = useAuth();
   const nav = useNavigate();
-  const [f, setF] = useState({ email: "", password: "" });
+  const [f, setF] = useState({ email: "", password: "", role: "patient" });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   if (user) return <Navigate to={homeFor(user)} replace />;
@@ -16,7 +16,7 @@ export default function Login() {
     setErr("");
     setBusy(true);
     try {
-      await login(f.email, f.password);
+      await login(f.email, f.password, f.role);
       nav("/");
     } catch (x) {
       setErr(x.message);
@@ -24,7 +24,6 @@ export default function Login() {
       setBusy(false);
     }
   };
-  const demo = (email) => setF({ email, password: "demo123" });
 
   return (
     <div className="min-h-screen grid lg:grid-cols-[45fr_55fr]">
@@ -52,6 +51,13 @@ export default function Login() {
               {err}
             </p>
           )}
+          <Field label="Sign in as">
+            <Select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+              <option value="patient">Patient</option>
+              <option value="doctor">Doctor</option>
+              <option value="pharmacist">Pharmacist</option>
+            </Select>
+          </Field>
           <Field label="Email" required>
             <Input
               type="email"
@@ -77,27 +83,7 @@ export default function Login() {
               Create an account
             </Link>
           </p>
-          <div className="border-t border-line pt-4 text-xs text-muted">
-            <p className="mb-2">
-              Demo access · fictional data (password: demo123)
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["Patient", "patient@demo.com"],
-                ["Doctor", "doctor@demo.com"],
-                ["Nurse", "nurse@demo.com"],
-              ].map(([l, e]) => (
-                <button
-                  type="button"
-                  key={l}
-                  onClick={() => demo(e)}
-                  className="px-3 py-1.5 rounded-full border border-bluebd bg-softblue text-primary font-medium"
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
+
         </form>
       </div>
     </div>
