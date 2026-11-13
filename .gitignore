@@ -1,5 +1,6 @@
 backend/*.env
-backend/myref.py
+backend/tmp/myref.py
+backend/tmp/api.py
 
 *.env
 *.zip

@@ -1,74 +1,106 @@
 import hashlib
-import hmac
-import os
 import secrets
-from contextlib import contextmanager
-from datetime import date, datetime
-from decimal import Decimal
-from zoneinfo import ZoneInfo
-from pathlib import Path
-from typing import Literal
-
-import backend.appointment as appointment
-from backend.utils.helpers import currUser, accUser, require_role
-
 import mysql.connector
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field, field_validator
 
-# A session is to be created generate token using secrets and INSERT INTO AuthSession
-def createSession(cur, account):
-    token = secrets.token_urlsafe(32)
-    t_hash = hashlib.sha256(token.encode()).hexdigest()
-    query = "INSERT INTO AuthSession (Token_hash,Account_id,Expires_at) VALUES (%s,%s,DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY))"
-    cur.execute(query, (t_hash, account['Account_id']))
-    return {'token': token, 'user': accUser(cur, account)}
+from server import getDBconnection
+from middleware import getCurrentUser
+from helpers import verifyPassword, hashPassword
 
+from fastapi import Depends, HTTPException, APIRouter
 
-# login
-@app.post('/auth/login')
-def login(data: Login):
-    with database() as cur:
-        query = "SELECT * FROM AuthAccount WHERE Email=%s AND Role=%s"
+router = APIRouter(prefix="/auth")
+
+@router.get("/me")
+async def me(user: dict = Depends(getCurrentUser)):
+    return user
+
+@router.post("/login")
+def login(data: dict):
+    con = getDBconnection()
+    cur = con.cursor(dictionary=True)
+    try:
+        cur.execute("START TRANSACTION")
+        query = "SELECT Account_id, Password_hash, Role FROM AuthAccount WHERE Email = %s AND Role = %s"
         cur.execute(query, (data.email, data.role))
         rows = cur.fetchall()
-        if not rows or not verifyPassword(data.password, rows[0]['Password_hash']):
-            raise HTTPException(401, 'Email or password is incorrect.')
-        # If you dont have email inside or enter wrong password then no login
-        return createSession(cur, rows[0])
+        if not rows:
+            raise HTTPException(status_code=401, detail="Not registered.")
+        
+        userRow = rows[0]
+        if not verifyPassword(data.password, userRow['Password_hash']):
+            raise HTTPException(status_code=401, detail="Incorrect Password.")
+        token = secrets.token_urlsafe(32)
+        t_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        insert_query = """
+            INSERT INTO AuthSession (Token_hash, Account_id, Expires_at) 
+            VALUES (%s, %s, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY))
+            """
+        cur.execute(insert_query, (t_hash, userRow['Account_id']))
+        con.commit()
+        return { "token": token, "user": userRow}
+    
+    except HTTPException:
+        con.rollback()
+        raise
+    except mysql.connector.IntegrityError as exc:
+        con.rollback()
+        raise HTTPException( status_code=409, detail="The operation conflicts with existing database data.")
+    finally:
+        cur.close()
+        con.close()
+            
+@router.post("/register")
+def register(data: dict):
+    con = getDBconnection()
+    cur = con.cursor(dictionary=True)
+    try:
+        cur.execute("START TRANSACTION")
+        cur.execute("SELECT Patiend_id FROM Patient WHERE Mail=%s", (data.email,))
+        existingPatient = cur.fetchall()
+        if existingPatient:
+            raise HTTPException(status_code=403, detail="Already Registered")
 
+        Name = data.name.split(maxsplit=1)
+        if len(Name) > 1:
+            first, last = Name[0], Name[1]
+        else:
+            first, last = '', ''
 
-@app.post('/patients/register', status_code=201)
-def register_patient(data: Registration):
-    parts = data.name.split(maxsplit=1)
-    first, last = parts[0], parts[1] if len(parts) > 1 else ''
-    with database() as cur:
-        query = "SELECT Patient_id FROM Patient WHERE Mail=%s"
-        cur.execute(query, (data.email,))
-        if cur.fetchall(): # raise error for the same patient registering twice
-            raise HTTPException(409, 'This email already has a patient record.')
         query = "INSERT INTO Patient (First_name,Last_name,Mail,Contact,DOB,Gender) VALUES (%s,%s,%s,%s,%s,%s)"
         cur.execute(query, (first, last, data.email, data.phone.removeprefix('+91'), data.dob, data.gender))
+        
         patient_id = cur.lastrowid
         query = "INSERT INTO AuthAccount (Email,Password_hash,Role,User_id) VALUES (%s,%s,'patient',%s)"
         cur.execute(query, (data.email, hashPassword(data.password), patient_id))
-        # generate session after register
-        return createSession(cur, {'Account_id': cur.lastrowid, 'Role': 'patient', 'User_id': patient_id})
 
+        account_id = cur.lastrowid
+        token = secrets.token_urlsafe(32)
+        t_hash = hashlib.sha256(token.encode()).hexdigest()
+        cur.execute("INSERT INTO AuthSession (Token_hash,Account_id,Expires_at) VALUES (%s,%s,DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY))", (t_hash, account_id))
 
-# fetch us
-@app.get('/auth/me')
-def me(user=Depends(currUser)):
-    return user
+        con.commit()
+        return {'token' : token}
+    finally:
+        cur.close()
+        con.close()
 
+@router.delete("/session", status_code=204)
+def logout(data: dict):
+    token = data.get("token")
+    if not isinstance(token, str) or not token:
+        raise HTTPException(status_code=401, detail="Please log in.")
 
-# sessions logout API - deletes the record from AuthSession simply
-@app.delete('/auth/session', status_code=204)
-def logout(cred: HTTPAuthorizationCredentials = Depends(bearer)):
-    if cred:
-        with database() as cur:
-            query = "DELETE FROM AuthSession WHERE Token_hash=%s"
-            cur.execute(query, (hashlib.sha256(cred.credentials.encode()).hexdigest(),))
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    con = getDBconnection()
+    cur = con.cursor(dictionary=True)
+    try:
+        query = "DELETE FROM AuthSession WHERE Token_hash = %s"
+        cur.execute(query, (token_hash,))
+        con.commit()
+    except mysql.connector.Error:
+        con.rollback()
+        raise HTTPException(status_code=500, detail="Could not log out.")
+    finally:
+        cur.close()
+        con.close()
