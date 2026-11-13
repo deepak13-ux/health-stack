@@ -54,7 +54,7 @@ async function authenticate(path, body) {
 export const login = (email, password, role = "patient") => authenticate("/auth/login", { email, password, role });
 export const registerPatient = (data) => authenticate("/patients/register", data);
 export async function logout() {
-  try { await request("/auth/session", { method: "DELETE" }); }
+  try { await request("/auth/session", { method: "DELETE", body: { token: sessionStorage.getItem(TOKEN_KEY) } }); }
   finally { sessionStorage.removeItem(TOKEN_KEY); }
 }
 export const listDoctors = () => request("/doctors");
