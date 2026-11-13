@@ -74,10 +74,12 @@ def register(data: dict):
         query = "INSERT INTO AuthAccount (Email,Password_hash,Role,User_id) VALUES (%s,%s,'patient',%s)"
         cur.execute(query, (data.email, hashPassword(data.password), patient_id))
 
+        account_id = cur.lastrowid
         token = secrets.token_urlsafe(32)
         t_hash = hashlib.sha256(token.encode()).hexdigest()
-        cur.execute("INSERT INTO AuthSession (Token_hash,Account_id,Expires_at) VALUES (%s,%s,DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY))", (t_hash, ))
+        cur.execute("INSERT INTO AuthSession (Token_hash,Account_id,Expires_at) VALUES (%s,%s,DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY))", (t_hash, account_id))
 
+        con.commit()
         return {'token' : token}
     finally:
         cur.close()
