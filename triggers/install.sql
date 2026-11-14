@@ -1,4 +1,4 @@
-use healthstack;
+use Healthstack;
 
 source triggers/employee.sql;
 source triggers/date_validation.sql;

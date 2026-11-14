@@ -1,4 +1,4 @@
-use healthstack;
+use Healthstack;
 
 drop trigger if exists trg_pres_details_freeze_before_insert;
 drop trigger if exists trg_pres_details_freeze_before_update;
