@@ -1,4 +1,4 @@
-use healthstack;
+use Healthstack;
 
 drop trigger if exists trg_employee_validate_before_insert;
 drop trigger if exists trg_employee_validate_before_update;

@@ -1,4 +1,4 @@
-use healthstack;
+use Healthstack;
 
 drop trigger if exists trg_appointment_bi;
 drop trigger if exists trg_appointment_bu;

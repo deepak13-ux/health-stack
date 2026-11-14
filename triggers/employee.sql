@@ -1,4 +1,4 @@
-use healthstack;
+use Healthstack;
 
 drop trigger if exists trg_doctor_disjoint_before_insert;
 drop trigger if exists trg_doctor_disjoint_before_update;
