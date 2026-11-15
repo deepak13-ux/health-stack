@@ -1,5 +1,5 @@
 import hashlib
-from server import getDBconnection
+from backend.transactions.server import getDBconnection
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 

@@ -3,8 +3,8 @@ from datetime import date
 import mysql.connector
 from fastapi import APIRouter, Depends, HTTPException
 
-from server import getDBconnection
-from middleware import getCurrentUser
+from backend.transactions.server import getDBconnection
+from backend.transactions.middleware import getCurrentUser
 
 router = APIRouter(prefix="/patients")
 

@@ -2,9 +2,9 @@ import hashlib
 import secrets
 import mysql.connector
 
-from server import getDBconnection
-from middleware import getCurrentUser
-from helpers import verifyPassword, hashPassword
+from backend.transactions.server import getDBconnection
+from backend.transactions.middleware import getCurrentUser
+from backend.transactions.helpers import verifyPassword, hashPassword
 
 from fastapi import Depends, HTTPException, APIRouter
 

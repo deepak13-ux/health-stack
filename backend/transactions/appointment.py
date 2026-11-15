@@ -6,8 +6,8 @@ import mysql.connector
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from middleware import getCurrentUser
-from server import getDBconnection, SLOTS, MAX_BOOKING_DAYS
+from backend.transactions.middleware import getCurrentUser
+from backend.transactions.server import getDBconnection, SLOTS, MAX_BOOKING_DAYS
 
 router = APIRouter()
 

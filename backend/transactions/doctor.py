@@ -4,8 +4,8 @@ from zoneinfo import ZoneInfo
 import mysql.connector
 from fastapi import APIRouter, Depends, HTTPException
 
-from server import getDBconnection, SLOTS, MAX_BOOKING_DAYS
-from middleware import getCurrentUser
+from backend.transactions.server import getDBconnection, SLOTS, MAX_BOOKING_DAYS
+from backend.transactions.middleware import getCurrentUser
 
 router = APIRouter()
 

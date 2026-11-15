@@ -54,11 +54,11 @@ def health_db():
 
 # Import routers only after getDBconnection is defined.
 # Existing auth/patient modules import it from server.py.
-from auth import router as auth_router
-from patient import router as patient_router
-from doctor import router as doctor_router
-from appointment import router as appointment_router
-from reception import router as reception_router
+from backend.transactions.auth import router as auth_router
+from backend.transactions.patient import router as patient_router
+from backend.transactions.doctor import router as doctor_router
+from backend.transactions.appointment import router as appointment_router
+from backend.transactions.reception import router as reception_router
 
 app.include_router(auth_router, tags=['auth'])
 app.include_router(patient_router, tags=['patients'])
