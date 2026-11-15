@@ -1,7 +1,6 @@
 create database if not exists Healthstack;
 use Healthstack;
 
-drop tables if exists Admission;
 drop tables if exists Bill;
 drop tables if exists Pres_Details;
 drop tables if exists Medicine;
@@ -9,7 +8,6 @@ drop tables if exists Prescription;
 drop tables if exists Appointment;
 drop tables if exists Patient;
 drop tables if exists Pharmacist;
-drop tables if exists Technician;
 drop tables if exists Receptionist;
 drop tables if exists Ward_boy;
 drop tables if exists Ward;
@@ -80,13 +78,6 @@ create table Ward_boy (
 create table Receptionist (
     Employee_id int,
     Desk_no varchar(20) not null,
-    primary key (Employee_id),
-    foreign key (Employee_id) references Employee(Employee_id) on delete cascade
-);
-
-create table Technician (
-    Employee_id int,
-    Skill varchar(100) not null,
     primary key (Employee_id),
     foreign key (Employee_id) references Employee(Employee_id) on delete cascade
 );
@@ -179,21 +170,6 @@ create table Bill (
     check (Payment_status = 'Pending' or Payment_mode is not null)
 );
 
-create table Admission (
-    Admission_id int,
-    Patient_id int not null,
-    Ward_id int not null,
-    Nurse_id int not null,
-    Admit_date date not null,
-    Discharge_date date,
-    primary key (Admission_id),
-    foreign key (Patient_id) references Patient(Patient_id) on delete restrict,
-    foreign key (Ward_id) references Ward(Ward_id) on delete restrict,
-    foreign key (Nurse_id) references Nurse(Employee_id) on delete restrict,
-    check (Discharge_date is null or Discharge_date >= Admit_date)
-);
-
--- Login accounts and sessions for patients, doctors and pharmacists.
 CREATE TABLE IF NOT EXISTS AuthAccount (
     Account_id INT AUTO_INCREMENT PRIMARY KEY,
     Email VARCHAR(100) NOT NULL UNIQUE,

@@ -2,13 +2,15 @@ from datetime import date as Date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import mysql.connector
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from server import getDBconnection, SLOTS, MAX_BOOKING_DAYS
+from middleware import getCurrentUser
 
 router = APIRouter()
 
 
+# universal transaction executer
 def read_all(sql, params=()):
     con = getDBconnection()
     cur = con.cursor(dictionary=True)
@@ -22,11 +24,13 @@ def read_all(sql, params=()):
         con.close()
 
 
+# Get the departments for the doctors
 @router.get('/departments')
 def departments():
     return read_all('select Dept_id, Dept_name from Department order by Dept_name')
 
 
+# get the doctors
 @router.get('/doctors')
 def doctors(department_id: int | None = None):
     query = '''
@@ -59,6 +63,7 @@ def doctor_profile(doctor_id: int):
     return rows[0]
 
 
+# Get a particular docs slots (that are hardcoded)
 @router.get('/doctors/{doctor_id}/slots')
 def available_slots(doctor_id: int, date: Date):
     now = datetime.now(ZoneInfo('Asia/Kolkata'))
@@ -79,3 +84,22 @@ def available_slots(doctor_id: int, date: Date):
         (date > now.date() or time.fromisoformat(s) > now.time())
     ]
     return {'doctor_id': doctor_id, 'date': date, 'available_slots': available}
+
+
+# Active appointments for the logged-in doctor for today, with patient information.
+@router.get('/doctors/me/appointments')
+def current_appointments(user: dict = Depends(getCurrentUser)):
+    if user['role'] != 'doctor':
+        raise HTTPException(status_code=403, detail='Doctor access required.')
+
+    today = datetime.now(ZoneInfo('Asia/Kolkata')).date()
+    query = """
+        select a.Appointment_id, a.App_date,
+               time_format(a.App_time, '%H:%i') as App_time, a.App_status,
+               p.Patient_id, p.First_name, p.Last_name, p.DOB,
+               p.Gender, p.Contact, p.History
+        from Appointment a join Patient p on a.Patient_id = p.Patient_id
+        where a.Doctor_id = %s and a.App_date = %s and a.App_status = 'Scheduled'
+        order by a.App_time
+    """
+    return read_all(query, (user['userId'], today))

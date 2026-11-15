@@ -21,13 +21,13 @@ def login(data: dict):
     try:
         cur.execute("START TRANSACTION")
         query = "SELECT Account_id, Password_hash, Role FROM AuthAccount WHERE Email = %s AND Role = %s"
-        cur.execute(query, (data.email, data.role))
+        cur.execute(query, (data["email"], data["role"]))
         rows = cur.fetchall()
         if not rows:
             raise HTTPException(status_code=401, detail="Not registered.")
         
         userRow = rows[0]
-        if not verifyPassword(data.password, userRow['Password_hash']):
+        if not verifyPassword(data["password"], userRow['Password_hash']):
             raise HTTPException(status_code=401, detail="Incorrect Password.")
         token = secrets.token_urlsafe(32)
         t_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -56,23 +56,23 @@ def register(data: dict):
     cur = con.cursor(dictionary=True)
     try:
         cur.execute("START TRANSACTION")
-        cur.execute("SELECT Patiend_id FROM Patient WHERE Mail=%s", (data.email,))
+        cur.execute("SELECT Patient_id FROM Patient WHERE Mail=%s", (data["email"],))
         existingPatient = cur.fetchall()
         if existingPatient:
             raise HTTPException(status_code=403, detail="Already Registered")
 
-        Name = data.name.split(maxsplit=1)
+        Name = data["name"].split(maxsplit=1)
         if len(Name) > 1:
             first, last = Name[0], Name[1]
         else:
             first, last = '', ''
 
         query = "INSERT INTO Patient (First_name,Last_name,Mail,Contact,DOB,Gender) VALUES (%s,%s,%s,%s,%s,%s)"
-        cur.execute(query, (first, last, data.email, data.phone.removeprefix('+91'), data.dob, data.gender))
+        cur.execute(query, (first, last, data["email"], data["phone"].removeprefix('+91'), data["dob"], data["gender"]))
         
         patient_id = cur.lastrowid
         query = "INSERT INTO AuthAccount (Email,Password_hash,Role,User_id) VALUES (%s,%s,'patient',%s)"
-        cur.execute(query, (data.email, hashPassword(data.password), patient_id))
+        cur.execute(query, (data["email"], hashPassword(data["password"]), patient_id))
 
         account_id = cur.lastrowid
         token = secrets.token_urlsafe(32)
