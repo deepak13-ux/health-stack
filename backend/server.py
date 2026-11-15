@@ -41,6 +41,7 @@ def health_db():
         con = getDBconnection()
         cur = con.cursor()
         cur.execute('select 1')
+        cur.fetchall()
         return {'database': 'connected'}
     except mysql.connector.Error as exc:
         raise HTTPException(status_code=503, detail='Database unavailable') from exc

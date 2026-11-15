@@ -1,6 +1,4 @@
 -- HealthStack: fictional college-project data.
--- Run ONCE on an empty database after backend/schema/table.sql.
--- Optional triggers can be installed before this seed; prescription items precede bills.
 -- All seeded login accounts use password: demo123
 -- Patient: patient@demo.com | Doctor: doctor@demo.com | Pharmacist: pharmacist@demo.com
 -- This script does not delete or overwrite existing records.
@@ -137,3 +135,7 @@ SELECT Mail, @demo_hash, 'pharmacist', Employee_id FROM Employee WHERE Role = 'P
 
 -- Sessions are intentionally empty: log in through /auth/login to create a session.
 COMMIT;
+
+-- Quick confirmation after sourcing this file.
+SELECT 'Demo ready. Password for all accounts: demo123' AS message;
+SELECT Role, COUNT(*) AS accounts FROM AuthAccount GROUP BY Role;

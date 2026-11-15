@@ -1,18 +1,18 @@
 # trigger notes
 
-This file documents the trigger rules used by the current HealthStack schema. Keep one trigger file in use: `triggers/triggers.sql`. It replaces the older `triggers.local.sql` and the previous trigger set.
+The current triggers are included directly in `backend/schema/table.sql`.
+Only two SQL files need to be sourced from the project root:
 
-## setup
-
-Run the schema first, then the triggers, and finally the sample data:
-
-```bash
-mysql -u root -p < schema/table.sql
-mysql -u root -p healthstack < triggers/triggers.sql
-mysql -u root -p healthstack < seed/seed.sql
+```sql
+SOURCE backend/schema/table.sql;
+SOURCE backend/seed/seed.sql;
 ```
 
-The script drops trigger names used by the earlier versions before creating this set. It requires the columns in the current `schema/table.sql`, including `Employee.Role`, `Doctor.Consultation_fee`, `Pres_Details.Unit_price`, and `Bill.Appointment_id`.
+`table.sql` rebuilds the application tables (including login accounts and sessions)
+and installs all valid triggers. `seed.sql` inserts the fictional demo records.
+Re-sourcing both resets the demo. All seeded login passwords are `demo123`.
+The standalone trigger files remain available for reference or individual updates.
+Technician and Admission triggers were removed because those tables are no longer in the schema.
 
 ## rules
 
@@ -27,7 +27,7 @@ The script drops trigger names used by the earlier versions before creating this
 | bill creation and updates | `trg_bill_bi`, `trg_bill_bu`                                        | Calculate the bill from the consultation fee and stored medicine prices. Later edits cannot change the fee or total, and the bill cannot be moved to another appointment. The bill date must not precede the appointment. |
 | patient DOB               | `trg_patient_dob_bi`, `trg_patient_dob_bu`                          | Reject a patient DOB in the future. A DOB equal to today is allowed.                                                                                                                                                      |
 
-The file defines 25 triggers and one helper procedure. The six subclass role checks each have an insert and update trigger.
+The file defines 25 triggers and one helper procedure. The five subclass role checks each have an insert and update trigger.
 
 ## bill calculation
 
