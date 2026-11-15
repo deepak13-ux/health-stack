@@ -57,11 +57,13 @@ from auth import router as auth_router
 from patient import router as patient_router
 from doctor import router as doctor_router
 from appointment import router as appointment_router
+from reception import router as reception_router
 
 app.include_router(auth_router, tags=['auth'])
 app.include_router(patient_router, tags=['patients'])
 app.include_router(doctor_router, tags=['doctors'])
 app.include_router(appointment_router, tags=['appointments'])
+app.include_router(reception_router, tags=['reception'])
 
 
 if __name__ == '__main__':

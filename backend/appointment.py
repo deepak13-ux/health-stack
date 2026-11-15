@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import mysql.connector
@@ -152,8 +153,7 @@ def cancel_appointment(appointment_id: int, user: dict = Depends(getCurrentUser)
 
 
 @router.patch('/appointments/{appointment_id}/reschedule')
-def reschedule_appointment(appointment_id: int, data: Reschedule,
-                           user: dict = Depends(getCurrentUser)):
+def reschedule_appointment(appointment_id: int, data: Reschedule, user: dict = Depends(getCurrentUser)):
     patient_id = require_patient(user)
     validate_slot(data.app_date, data.app_time)
     con = getDBconnection()
@@ -198,6 +198,78 @@ def reschedule_appointment(appointment_id: int, data: Reschedule,
     except HTTPException:
         con.rollback()
         raise
+    except mysql.connector.Error as exc:
+        database_failure(con, exc)
+    finally:
+        cur.close()
+        con.close()
+
+
+@router.post('/appointments/{appointment_id}/complete')
+def complete_appointment(appointment_id: int, data: dict, user: dict = Depends(getCurrentUser)):
+    if user['role'] != 'doctor':
+        raise HTTPException(403, 'Doctor access required')
+    if len({item["medicineId"] for item in data.get("items", [])}) != len(data.get("items", [])):
+        raise HTTPException(422, 'Add each medicine only once')
+
+    today = datetime.now(ZoneInfo('Asia/Kolkata')).date()
+    consultation_fee = Decimal('200.00')
+    con = getDBconnection()
+    cur = con.cursor(dictionary=True)
+    try:
+        con.start_transaction()
+
+        # SELECT FOR UPDATE for this doctor's appointment so two requests cannot complete it together.
+        query = """
+                select a.App_status, a.App_date 
+                from Appointment a JOIN Employee e ON a.Doctor_id = a.Employee_id
+                WHERE a.Appointment_id = %s AND a.Doctor_id = %s AND e.Is_active = true
+                for update
+            """
+        cur.execute(query, (appointment_id, user['userId']))
+
+        rows = cur.fetchall()
+        if not rows:
+            raise HTTPException(404, 'Appointment not found or doctor inactive')
+        if rows[0]['App_status'] != 'Scheduled':
+            raise HTTPException(409, 'Appointment is already completed or cancelled')
+        if rows[0]['App_date'] > today:
+            raise HTTPException(409, 'A future appointment cannot be completed')
+
+        # Save the prescription first, then its medicine rows.
+        valid_until = today + timedelta(days=data.get("durationDays", 7) - 1)
+        
+        query = "INSERT INTO Prescription (Appointment_id, Pres_date, Notes, Valid_until values (%s, %s, %s, %s)"
+        cur.execute(query, (appointment_id, today, data.get("notes", ""), valid_until))
+        prescription_id = cur.lastrowid
+
+        total = consultation_fee
+        for item in data.get("items", []):
+            cur.execute('select Price from Medicine where Med_id = %s for update', (item["medicineId"],))
+            rows = cur.fetchall()
+            if not rows:
+                raise HTTPException(422, 'Medicine not found')
+            price = Decimal(str(rows[0]['Price']))
+            total += price * item["qty"]
+
+            query = "insert into Pres_Details (Pres_id, Med_id, Quantity, Dosage, Frequency, Unit_price) values (%s, %s, %s, %s, %s, %s)"
+            cur.execute(query, (prescription_id, item["medicineId"], item["qty"], item["dosage"], item.get("frequency", "Daily"), price))
+
+        # There is a billing trigger that calculates the same consultation + medicine total.
+        query = "insert into Bill (Appointment_id, Consultation_fee, Bill_amount, Bill_date) values (%s, %s, %s, %s)"
+        cur.execute(query, (appointment_id, consultation_fee, total, today))
+        bill_id = cur.lastrowid
+
+        cur.execute("update Appointment set App_status = 'Completed' where Appointment_id = %s", (appointment_id,)) # updating the appointment
+        cur.execute("update Doctor set Current_appointment_id = NULL where Employee_id = %s and Current_appointment_id = %s", (user['userId'], appointment_id)) # set Current_appointment_id to NULL.
+        con.commit() 
+        return {'message': 'Appointment completed. Prescription and bill created.', 'appointment_id': appointment_id, 'prescription_id': prescription_id, 'bill_id': bill_id, 'bill_amount': total}
+    except HTTPException:
+        con.rollback()
+        raise
+    except mysql.connector.IntegrityError as exc:
+        con.rollback()
+        raise HTTPException(409, 'Prescription or bill conflicts with existing records') from exc
     except mysql.connector.Error as exc:
         database_failure(con, exc)
     finally:
