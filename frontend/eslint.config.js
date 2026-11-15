@@ -13,11 +13,11 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
-    // These shared helpers intentionally live beside their small UI/provider modules.
+    // These hooks intentionally live beside the provider/components they belong to.
     rules: {
       'react-refresh/only-export-components': ['error', {
         allowConstantExport: true,
-        allowExportNames: ['useAuth', 'homeFor', 'inr', 'fmtDate'],
+        allowExportNames: ['useAuth', 'useToast', 'useAppointmentActions', 'buttonClass'],
       }],
     },
     languageOptions: {

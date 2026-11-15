@@ -10,9 +10,29 @@ from fastapi import Depends, HTTPException, APIRouter
 
 router = APIRouter(prefix="/auth")
 
+
+# Read-only: the display fields the frontend needs for the signed-in account.
+# Patients are named from Patient; doctors and pharmacists from Employee.
+def accountProfile(cur, accountId, role, userId):
+    if role == "patient":
+        cur.execute("SELECT First_name, Last_name, Mail FROM Patient WHERE Patient_id = %s", (userId,))
+    else:
+        cur.execute("SELECT First_name, Last_name, Mail FROM Employee WHERE Employee_id = %s", (userId,))
+    rows = cur.fetchall()
+    person = rows[0] if rows else {"First_name": "", "Last_name": "", "Mail": None}
+    name = f"{person['First_name']} {person['Last_name']}".strip()
+    return {"accountId": accountId, "role": role, "userId": userId, "name": name, "email": person["Mail"]}
+
+
 @router.get("/me")
-async def me(user: dict = Depends(getCurrentUser)):
-    return user
+def me(user: dict = Depends(getCurrentUser)):
+    con = getDBconnection()
+    cur = con.cursor(dictionary=True)
+    try:
+        return accountProfile(cur, user["accountId"], user["role"], user["userId"])
+    finally:
+        cur.close()
+        con.close()
 
 @router.post("/login")
 def login(data: dict):
@@ -20,7 +40,7 @@ def login(data: dict):
     cur = con.cursor(dictionary=True)
     try:
         cur.execute("START TRANSACTION")
-        query = "SELECT Account_id, Password_hash, Role FROM AuthAccount WHERE Email = %s AND Role = %s"
+        query = "SELECT Account_id, Password_hash, Role, User_id FROM AuthAccount WHERE Email = %s AND Role = %s"
         cur.execute(query, (data["email"], data["role"]))
         rows = cur.fetchall()
         if not rows:
@@ -38,7 +58,9 @@ def login(data: dict):
             """
         cur.execute(insert_query, (t_hash, userRow['Account_id']))
         con.commit()
-        return { "token": token, "user": userRow}
+        # Return the same profile shape as /auth/me; never return Password_hash.
+        user = accountProfile(cur, userRow['Account_id'], userRow['Role'], userRow['User_id'])
+        return { "token": token, "user": user}
     
     except HTTPException:
         con.rollback()

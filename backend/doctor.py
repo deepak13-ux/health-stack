@@ -63,6 +63,13 @@ def doctor_profile(doctor_id: int):
     return rows[0]
 
 
+# Read-only medicine catalogue for the doctor's prescription form
+# (POST /appointments/{id}/complete expects items[].medicineId from this list).
+@router.get('/medicines')
+def medicines(user: dict = Depends(getCurrentUser)):
+    return read_all('select Med_id, Med_name, Price from Medicine order by Med_name')
+
+
 # Get a particular docs slots (that are hardcoded)
 @router.get('/doctors/{doctor_id}/slots')
 def available_slots(doctor_id: int, date: Date):
