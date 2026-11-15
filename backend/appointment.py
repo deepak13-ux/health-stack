@@ -39,6 +39,54 @@ def validate_slot(day, slot):
         raise HTTPException(422, 'Appointment must be in the future')
 
 
+def attach_records(cur, appointments, include_bill=True):
+    """Read-only: add each appointment's prescription (with medicines) and bill.
+
+    Adds `prescription` (or None) and, when include_bill, `bill` (or None) to every row.
+    """
+    for row in appointments:
+        row['prescription'] = None
+        if include_bill:
+            row['bill'] = None
+    ids = [row['Appointment_id'] for row in appointments]
+    if not ids:
+        return appointments
+    by_appointment = {row['Appointment_id']: row for row in appointments}
+    marks = ', '.join(['%s'] * len(ids))
+
+    cur.execute(f'''
+        select Pres_id, Appointment_id, Pres_date, Notes, Valid_until
+        from Prescription where Appointment_id in ({marks})
+    ''', ids)
+    prescriptions = {}
+    for pres in cur.fetchall():
+        pres['medicines'] = []
+        prescriptions[pres['Pres_id']] = pres
+        by_appointment[pres['Appointment_id']]['prescription'] = pres
+
+    if prescriptions:
+        pres_marks = ', '.join(['%s'] * len(prescriptions))
+        cur.execute(f'''
+            select pd.Pres_id, m.Med_id, m.Med_name, pd.Quantity,
+                   pd.Dosage, pd.Frequency, pd.Unit_price
+            from Pres_Details pd join Medicine m on pd.Med_id = m.Med_id
+            where pd.Pres_id in ({pres_marks})
+            order by m.Med_name
+        ''', list(prescriptions))
+        for med in cur.fetchall():
+            prescriptions[med.pop('Pres_id')]['medicines'].append(med)
+
+    if include_bill:
+        cur.execute(f'''
+            select Bill_id, Appointment_id, Consultation_fee, Bill_amount, Bill_date,
+                   Paid_date, Payment_status, Payment_mode
+            from Bill where Appointment_id in ({marks})
+        ''', ids)
+        for bill in cur.fetchall():
+            by_appointment[bill['Appointment_id']]['bill'] = bill
+    return appointments
+
+
 def database_failure(con, exc):
     con.rollback()
     if exc.errno == 1062:
@@ -90,13 +138,16 @@ def my_appointments(user: dict = Depends(getCurrentUser)):
         cur.execute('''
             select a.Appointment_id, a.Doctor_id, a.App_date,
                    time_format(a.App_time, '%H:%i') as App_time,
-                   a.App_status, e.First_name, e.Last_name
+                   a.App_status, e.First_name, e.Last_name, dep.Dept_name
             from Appointment a
             join Employee e on e.Employee_id = a.Doctor_id
+            left join Doctor d on d.Employee_id = a.Doctor_id
+            left join Department dep on dep.Dept_id = d.Dept_id
             where a.Patient_id = %s
             order by a.App_date desc, a.App_time desc
         ''', (patient_id,))
-        return cur.fetchall()
+        # Each visit also carries its prescription and bill for the patient's records screens.
+        return attach_records(cur, cur.fetchall())
     finally:
         cur.close()
         con.close()
@@ -120,6 +171,28 @@ def appointment_details(appointment_id: int, user: dict = Depends(getCurrentUser
         row = cur.fetchone()
         if not row:
             raise HTTPException(404, 'Appointment not found')
+        if user['role'] == 'doctor':
+            # Read-only context for the doctor's appointment screen: the patient's details
+            # and their visit history (all doctors) with prescriptions. Bills are not included.
+            cur.execute('''
+                select Patient_id, First_name, Last_name, Gender, DOB, Contact, Mail,
+                       City, State, History
+                from Patient where Patient_id = %s
+            ''', (row['Patient_id'],))
+            patients = cur.fetchall()
+            row['patient'] = patients[0] if patients else None
+            cur.execute('''
+                select a.Appointment_id, a.Doctor_id, a.App_date,
+                       time_format(a.App_time, '%H:%i') as App_time,
+                       a.App_status, e.First_name, e.Last_name, dep.Dept_name
+                from Appointment a
+                join Employee e on e.Employee_id = a.Doctor_id
+                left join Doctor d on d.Employee_id = a.Doctor_id
+                left join Department dep on dep.Dept_id = d.Dept_id
+                where a.Patient_id = %s
+                order by a.App_date desc, a.App_time desc
+            ''', (row['Patient_id'],))
+            row['history'] = attach_records(cur, cur.fetchall(), include_bill=False)
         return row
     finally:
         cur.close()
@@ -222,7 +295,7 @@ def complete_appointment(appointment_id: int, data: dict, user: dict = Depends(g
         # SELECT FOR UPDATE for this doctor's appointment so two requests cannot complete it together.
         query = """
                 select a.App_status, a.App_date 
-                from Appointment a JOIN Employee e ON a.Doctor_id = a.Employee_id
+                from Appointment a JOIN Employee e ON a.Doctor_id = e.Employee_id
                 WHERE a.Appointment_id = %s AND a.Doctor_id = %s AND e.Is_active = true
                 for update
             """
@@ -239,7 +312,7 @@ def complete_appointment(appointment_id: int, data: dict, user: dict = Depends(g
         # Save the prescription first, then its medicine rows.
         valid_until = today + timedelta(days=data.get("durationDays", 7) - 1)
         
-        query = "INSERT INTO Prescription (Appointment_id, Pres_date, Notes, Valid_until values (%s, %s, %s, %s)"
+        query = "INSERT INTO Prescription (Appointment_id, Pres_date, Notes, Valid_until) values (%s, %s, %s, %s)"
         cur.execute(query, (appointment_id, today, data.get("notes", ""), valid_until))
         prescription_id = cur.lastrowid
 

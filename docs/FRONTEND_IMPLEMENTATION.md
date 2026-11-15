@@ -1,71 +1,64 @@
-> Historical plan: the active app has been reduced to patient, doctor and pharmacist workflows. See [backend/README.md](../backend/README.md) for the current scope and setup.
+# Frontend ↔ backend integration
 
-# Implementation-plan frontend audit
+The frontend (`frontend/`) is built against the FastAPI backend in `backend/`. Visual design, tokens and interaction patterns follow `frontend/Careflow-Frontend-Blueprint.md`. Screens exist only for workflows the backend supports: **patient, doctor and pharmacist** (the `AuthAccount.Role` enum). Blueprint modules with no backend tables or APIs (admissions/beds, invoice editing, reports, hospital settings, admin doctor management) are not built, so no control promises behaviour the server can't perform.
 
-Source: `implementation.jpeg`. Styling: `frontend/Careflow-Frontend-Blueprint.md`, existing Tailwind configuration and `src/index.css`. The image extends the older blueprint with pharmacy, clinical tests, patient self-service and nurse duties; those requirements take precedence for these additions.
+## Running locally
 
-## Delivered UI
+```bash
+# backend (needs backend/.env, see .env.example)
+cd backend && uvicorn server:app --reload          # http://127.0.0.1:8000
+# frontend
+cd frontend && npm install && npm run dev           # http://localhost:5173
+npm test        # domain rules + API contract tests (node --test)
+npm run lint && npm run build
+```
 
-| Image requirement                                                | Frontend implementation                                                                                                                                                                                                                                       |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Patient, doctor, nurse, pharmacist and tech-team login           | Login offers each role; tech team uses Administrator permissions. Existing receptionist remains available. Route guards apply to new routes.                                                                                                                  |
-| Patient current / scheduled / historical appointments            | `/patient/appointments` has current/upcoming, past/cancelled and all views, sorted chronologically. Follow-up appointments are labelled when the server supplies `type: follow_up`.                                                                           |
-| Schedule only available slots within three days                  | Booking uses server slots, today plus two following hospital calendar days, Asia/Kolkata. A failed booking refreshes slots while preserving reason/date. No availability is fabricated.                                                                       |
-| Cancellation / rescheduling, no same-day edits                   | Only future scheduled visits expose these actions; handlers recheck eligibility. Rescheduling reuses the slot picker and saves through a dedicated API.                                                                                                       |
-| Editable patient personal information                            | `/settings` edits name, phone, birth date, gender, address and emergency contact. Medical records, role and email remain read-only. Doctor/nurse/pharmacist profiles edit name/phone.                                                                         |
-| Prescription and test history                                    | `/patient/records` includes notes, prescriptions, optional prescription status/validity, tests and results. The UI does not infer that an old prescription remains active when duration/status is missing.                                                    |
-| Paid/unpaid bills and amount left                                | Bill cards show paid and outstanding amounts from payments; partial payments are deducted. Payment submissions show pending/error states.                                                                                                                     |
-| Clickable doctor appointments and past patients                  | Doctor schedule names link to `/staff/patients/:id`. `/staff/patients` searches server-authorized patients. History includes appointments, prescriptions, doctor notes and tests.                                                                             |
-| Doctor notes, medicines, stock quantity and consultation billing | Existing visit completion is retained, with positive whole-number quantities, duplicate medicine checks, optional `availableQty` checks, numeric consultation fee and paise-based medicine total calculations. Existing server completion generates the bill. |
-| Doctor test orders                                               | In-consultation appointments have an Order test dialog backed by the test catalogue. Results appear in patient/doctor history.                                                                                                                                |
-| Doctor leave                                                     | `/staff/leave` submits dated requests and displays server status. The image explicitly marks moving appointments to next week as uncertain; the UI does not silently move patients or assume approval.                                                        |
-| Nurse information and assigned duty                              | Existing employment/profile screens plus `/staff/duties` for shifts, doctor assistance, ward and instructions.                                                                                                                                                |
-| Pharmacist prescriptions and bill status                         | `/pharmacy` searches prescriptions and linked bills, with payment confirmation against the outstanding amount. Bill status changes follow recorded payment rather than an arbitrary Paid toggle.                                                              |
-| Tech team department and doctor management                       | Admin-only `/admin/departments` supports add/edit/remove. Existing doctor forms support add/edit/department assignment and deactivation (preserves clinical history). Admin snapshot, doctor and employee persistence now have explicit HTTP adapters.        |
-| Shared interactions                                              | New async views have loading, error/retry and empty states. Modals trap keyboard focus, restore trigger focus, support Escape and prevent background scrolling. Existing palette and UI components are reused.                                                |
+`VITE_API_URL` overrides the API base URL. Seeded demo accounts (`backend/seed/seed.sql`) use password `demo123`: `patient@demo.com`, `doctor@demo.com`, `pharmacist@demo.com`.
 
-Three-day interpretation: **today, tomorrow, and the following day**, including today only if the server offers a future slot. Same-day patient cancellation/rescheduling is disallowed. The server must enforce these policies too.
+## Routes
 
-## Backend integration required
+| Route | Patient | Doctor | Pharmacist |
+| --- | --- | --- | --- |
+| `/login`, `/register` | Sign in / self-registration | Sign in | Sign in |
+| `/overview` | KPIs, upcoming visits, bills, running prescriptions | Today's queue KPIs | Pending-bill KPIs |
+| `/appointments` | Own visits (Upcoming/Past/Cancelled/All), reschedule, cancel | Today's scheduled queue | — (403) |
+| `/appointments/:id` | Visit detail + prescription + bill | Patient details, visit history, **Complete visit** | — |
+| `/doctors`, `/doctors/:id` | Directory, availability, booking | — | — |
+| `/prescriptions` | Running / history | — | — |
+| `/billing`, `/billing/:id` | Own bills, printable bill | — | Pending bills, **Record payment**, printable bill |
+| `/settings` | Read-only profile, workspace info | same | same |
 
-**This is frontend implementation, not completion of the backend.** `backend/server.py` currently contains empty SQL statements even for existing authentication, appointment, prescription and billing endpoints. No real database workflow can be validated until those queries are implemented. New API contracts below are not currently implemented in that file; the frontend reports failures and never substitutes a locally successful mutation.
+## API map
 
-All routes require the existing bearer token. JSON bodies/responses use the existing frontend aliases and string IDs. List responses are arrays. Mutations return a JSON object, or 204 where appropriate. Responses must enforce actor scope; hiding a button is not authorization.
+`frontend/src/api/index.js` is the only module that calls the server; `normalize.js` maps database column names to UI shapes and rupees to integer paise.
 
-| Endpoint                              | Contract                                                                                                                                                                                                                                                                                           |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /staff/login`                   | `{email,password,role}` for nurse, pharmacist, admin, receptionist; returns `{token,user}` like existing patient/doctor login. Never grant a role merely because the request asks for it.                                                                                                          |
-| `PATCH /auth/profile`                 | Allowlisted own personal fields; returns saved profile. Do not permit role, salary, record ID, prescriptions or medical history updates. Existing `/auth/me` must reflect changes.                                                                                                                 |
-| `PATCH /appointments/:id/reschedule`  | `{patientId,doctorId,date,time,reason}`; preserve appointment identity/history. Verify actor, future scheduled visit, three-day window, doctor availability and conflicts atomically. Reject same-day edits.                                                                                       |
-| `GET /patients/:id/tests`             | `[{id,name,orderedAt,status,result?}]`, scoped to the patient or their assigned clinical staff.                                                                                                                                                                                                    |
-| `GET /tests`                          | `[{id,name}]`, available test catalogue.                                                                                                                                                                                                                                                           |
-| `POST /appointments/:id/tests`        | `{testId,notes}`; assigned doctor, in-consultation appointment, authoritative catalogue validation.                                                                                                                                                                                                |
-| `GET /staff/leave`                    | Own requests: `[{id,date,reason,status}]`.                                                                                                                                                                                                                                                         |
-| `POST /staff/leave`                   | `{date,reason}`; future date, doctor role. Return persisted request. Approved leave must block slots; affected appointment handling needs a separately confirmed policy.                                                                                                                           |
-| `GET /staff/duties`                   | Own nurse assignments: `[{id,date,shift,type,doctor?:{id,name},ward?:{id,name},instructions?}]`.                                                                                                                                                                                                   |
-| `GET /pharmacy`                       | Pharmacist-only prescription rows: `[{id,patient:{id,name},doctor:{id,name},items:[{name,qty,dosage}],bill?:{...existing patient bill shape}}]`.                                                                                                                                                   |
-| `POST /departments`                   | Admin-only `{name}`; reject duplicate names.                                                                                                                                                                                                                                                       |
-| `PATCH /departments/:id`              | Admin-only `{id,name}`.                                                                                                                                                                                                                                                                            |
-| `DELETE /departments/:id`             | Admin-only; reject linked records with 409; never cascade-delete medical records.                                                                                                                                                                                                                  |
-| `POST /doctors`, `PATCH /doctors/:id` | Admin-only existing doctor form shape: name, deptId, specialty, qualification, phone, email, fee (INR), days, start, end, status. Creation requires secure server-side account provisioning. Deactivation must preserve history and handle future bookings.                                        |
-| `POST /staff`, `PATCH /staff/:id`     | Admin-only existing employee form shape. Verify role and employment fields server-side.                                                                                                                                                                                                            |
-| `GET /admin/snapshot`                 | Authorized admin/receptionist snapshot matching the existing screens: patients, doctors, departments, appointments, employees, admissions, beds, wards, bills, settings. Records and relation IDs use existing selectors' shapes. Exclude unauthorized employee/settings fields for receptionists. |
+| Frontend call | Endpoint |
+| --- | --- |
+| login / getSession / registerPatient / logout | `POST /auth/login`, `GET /auth/me`, `POST /auth/register`, `DELETE /auth/session` |
+| listDepartments, listDoctors, getDoctor, getSlots | `GET /departments`, `GET /doctors`, `GET /doctors/{id}`, `GET /doctors/{id}/slots?date=` |
+| myProfile, myDashboard, myAppointments | `GET /patients/me`, `GET /patients/me/dashboard`, `GET /patients/me/appointments` |
+| bookAppointment, rescheduleAppointment, cancelAppointment | `POST /appointments`, `PATCH /appointments/{id}/reschedule`, `PATCH /appointments/{id}/cancel` |
+| doctorQueue, getAppointment, listMedicines, completeAppointment | `GET /doctors/me/appointments`, `GET /appointments/{id}`, `GET /medicines`, `POST /appointments/{id}/complete` |
+| pendingBills, recordPayment | `GET /reception/pending-bills`, `POST /bills/{id}/payments` |
 
-Existing endpoint extensions needed:
+## Backend changes made for the integration
 
-- Existing patient/doctor login and `/auth/me` must return recognized role, id, name, email and personal fields. Add nurse/pharmacist account support in the database.
-- Existing patient cancellation must enforce hospital-date restrictions server-side. Existing booking must enforce the three-day window and lock conflicting slots.
-- `/patients`, `/patients/:id`, appointments and prescriptions must authorize linked doctor access across past visits. Test and pharmacy access need equivalent server scopes.
-- `/medicines` may return `availableQty` for stock checks. Server completion must recheck and decrement stock in the same transaction as prescription/bill creation. Client stock validation alone is insufficient.
-- `/patients/:id/prescriptions` may include `status` and `validUntil` to identify running prescriptions. Without these fields, the UI shows “Prescription duration not recorded.”
-- Bill responses need complete `payments` for correct partial-payment balances; paid/void states remain authoritative. Existing `/bills/:id/payments` records the full remaining balance. Authorize pharmacists and prevent duplicate payment records server-side.
-- Follow-up booking creation is not specified in the image. The current patient picker books a regular visit; server-created follow-up appointments can be displayed via `type: follow_up`.
+No endpoint's workflow, authorisation or validation was changed. Changes are limited to response data, one read-only endpoint, and two SQL typo fixes.
 
-Other pre-existing admin API placeholders (admissions, invoice management, reports/settings mutations) remain explicitly unavailable in `api/admin.js`; they were not silently replaced with mock success. Existing hospital settings therefore still need backend integration. No automatic weekly rescheduling or arbitrary database console has been added.
+1. **`POST /auth/login`**: the `user` object is now `{accountId, role, userId, name, email}`, the same as `/auth/me`. It previously returned `{Account_id, Password_hash, Role}`, which exposed the password hash. `User_id` was added to the SELECT to build it.
+2. **`GET /auth/me`**: adds `name` and `email` (from `Patient` or `Employee`). Changed from `async def` to `def` because it now queries the database.
+3. **`GET /patients/me/appointments`**: each row adds `Dept_name`, `prescription` (`{Pres_id, Appointment_id, Pres_date, Notes, Valid_until, medicines[]}` or `null`) and `bill` (`{Bill_id, Appointment_id, Consultation_fee, Bill_amount, Bill_date, Paid_date, Payment_status, Payment_mode}` or `null`). The patient's prescription and bill screens rely on these.
+4. **`GET /appointments/{id}`**: for the doctor role only, the response adds `patient` (contact and history fields) and `history` (all of that patient's visits with prescriptions; no bills). The patient-role response is unchanged.
+5. **New `GET /medicines`** (authenticated, read-only): `[{Med_id, Med_name, Price}]`. The completion form needs it to pick the `medicineId`s that `complete` already expects.
+6. **`POST /appointments/{id}/complete`**: two SQL typos are fixed. The flow is unchanged and matches `transactions/appointment.sql`. Before the fix, every call failed with HTTP 500.
+   - `JOIN Employee e ON a.Doctor_id = a.Employee_id` → `= e.Employee_id`
+   - the `INSERT INTO Prescription (…, Valid_until values` statement was missing its `)`
 
-## Verification
+## Known backend gaps (not changed)
 
-- `npm run build` from `frontend`.
-- `node --test tests/*.test.mjs` covers API transport, new HTTP contracts, hospital timezone/date boundaries, three-day booking range, same-day/state edit restrictions and partial balances.
-- Focused ESLint for new workflow files and modified route/API pages.
-- Full repository lint still reports pre-existing mixed-export Fast Refresh rules, effect-state rules in legacy booking/admin forms, and unused imports. No browser testing framework is installed; real end-to-end testing is blocked by the unfinished backend queries and missing endpoints above.
+- Payments are recorded as the full amount in **Cash** only. The endpoint takes no method or amount, so the UI states this.
+- No profile-update, doctor-management, "start consultation" or "past patients" endpoints exist, so those screens are read-only or absent.
+- `GET /health/db` returns 500 ("Unread result found"): it closes the cursor without fetching the `select 1` row.
+- `POST /auth/register` with an email that already has a staff login raises an unhandled IntegrityError (500).
+- `triggers/employee.sql` and `triggers/appointment.sql` reference `Technician` and `Admission` tables that aren't in `schema/table.sql`, so those 3 triggers fail to install.
+- `schema/table.sql` doesn't drop `AuthAccount`/`AuthSession`, so re-running the seed on an existing database fails on duplicate emails.

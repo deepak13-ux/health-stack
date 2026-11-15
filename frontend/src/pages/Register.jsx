@@ -1,116 +1,81 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { Button, Field, Input, Select } from "../components/ui";
+import { useEffect, useRef, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
+import { hospitalToday } from "../lib/clock.js";
+import { validateRegistration } from "../lib/rules.js";
+import { Button, Field, InlineError, Input, Select } from "../components/ui.jsx";
+import { AuthIntro } from "./Login.jsx";
+
+const EMPTY = { firstName: "", lastName: "", email: "", password: "", phone: "", dob: "", gender: "" };
+const ORDER = Object.keys(EMPTY);
 
 export default function Register() {
-  const { register } = useAuth();
-  const nav = useNavigate();
-  const [f, setF] = useState({
-    name: "",
-    email: "",
-    password: "",
-    phone: "",
-    dob: "",
-    gender: "",
-  });
-  const [errs, setErrs] = useState({});
+  const { user, register } = useAuth();
+  const toast = useToast();
+  const [form, setForm] = useState(EMPTY);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const formRef = useRef(null);
+  const today = hospitalToday();
+  useEffect(() => { document.title = "Create account · Careflow"; }, []);
+  if (user) return <Navigate to="/overview" replace />;
 
-  const validate = () => {
-    const e = {};
-    if (f.name.trim().length < 2) e.name = "Enter your full name.";
-    if (!/^\S+@\S+\.\S+$/.test(f.email)) e.email = "Enter a valid email.";
-    if (f.password.length < 6) e.password = "Use at least 6 characters.";
-    if (!/^(\+91)?\d{10}$/.test(f.phone))
-      e.phone = "Enter a valid 10-digit phone number.";
-    if (!f.dob || new Date(f.dob) > new Date())
-      e.dob = "Select a valid date of birth.";
-    if (!f.gender) e.gender = "Select a gender.";
-    return e;
-  };
-  const submit = async (ev) => {
-    ev.preventDefault();
-    const e = validate();
-    setErrs(e);
-    if (Object.keys(e).length) return;
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const submit = async (e) => {
+    e.preventDefault();
+    const next = validateRegistration(form, today);
+    setErrors(next);
+    setFormError(null);
+    const first = ORDER.find((k) => next[k]);
+    if (first) {
+      formRef.current.querySelector(`[name="${first}"]`)?.focus();
+      return;
+    }
     setBusy(true);
     try {
-      await register({ ...f, name: f.name.trim() });
-      nav("/");
-    } catch (x) {
-      setErrs({ form: x.message });
-    } finally {
+      await register(form);
+      toast("Account created.");
+    } catch (err) {
+      setFormError(err.message === "Already Registered" ? "An account with this email is already registered. Sign in instead." : err.message);
       setBusy(false);
     }
   };
 
   return (
-    <div className="min-h-screen grid place-items-center p-6">
-      <form
-        onSubmit={submit}
-        noValidate
-        className="w-full max-w-[440px] bg-white border border-line rounded-[20px] p-6 space-y-4"
-      >
-        <h1 className="text-[28px] font-semibold">Create your account</h1>
-        {errs.form && (
-          <p
-            role="alert"
-            className="bg-[#FDEDEE] text-[#A12B35] rounded-lg p-3"
-          >
-            {errs.form}
-          </p>
-        )}
-        <Field label="Full name" required error={errs.name}>
-          <Input value={f.name} onChange={set("name")} />
-        </Field>
-        <Field label="Email" required error={errs.email}>
-          <Input type="email" value={f.email} onChange={set("email")} />
-        </Field>
-        <Field label="Password" required error={errs.password}>
-          <Input
-            type="password"
-            value={f.password}
-            onChange={set("password")}
-          />
-        </Field>
-        <Field label="Phone" required error={errs.phone}>
-          <Input
-            inputMode="numeric"
-            value={f.phone}
-            onChange={set("phone")}
-            placeholder="9000000001"
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Date of birth" required error={errs.dob}>
-            <Input
-              type="date"
-              max={new Date().toISOString().slice(0, 10)}
-              value={f.dob}
-              onChange={set("dob")}
-            />
-          </Field>
-          <Field label="Gender" required error={errs.gender}>
-            <Select value={f.gender} onChange={set("gender")}>
-              <option value="">Select</option>
-              <option>Female</option>
-              <option>Male</option>
-              <option>Other</option>
-            </Select>
-          </Field>
+    <div className="min-h-screen grid lg:grid-cols-[45fr_55fr] bg-white">
+      <AuthIntro />
+      <main className="grid place-items-center p-6 sm:p-10">
+        <div className="w-full max-w-[440px]">
+          <h1 className="text-[28px] leading-9 font-semibold">Create your patient account</h1>
+          <p className="text-muted mb-6">Book visits and see your prescriptions and bills.</p>
+          <form ref={formRef} onSubmit={submit} noValidate className="space-y-4">
+            <InlineError>{formError}</InlineError>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="First name" required error={errors.firstName}><Input name="firstName" autoComplete="given-name" value={form.firstName} onChange={set("firstName")} /></Field>
+              <Field label="Last name" required error={errors.lastName}><Input name="lastName" autoComplete="family-name" value={form.lastName} onChange={set("lastName")} /></Field>
+            </div>
+            <Field label="Email" required error={errors.email}><Input name="email" type="email" autoComplete="email" value={form.email} onChange={set("email")} /></Field>
+            <Field label="Password" required error={errors.password} helper="At least 6 characters."><Input name="password" type="password" autoComplete="new-password" value={form.password} onChange={set("password")} /></Field>
+            <Field label="Phone" required error={errors.phone} helper="10 digits; +91 is optional."><Input name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="9000000001" value={form.phone} onChange={set("phone")} /></Field>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Date of birth" required error={errors.dob}><Input name="dob" type="date" max={today} value={form.dob} onChange={set("dob")} /></Field>
+              <Field label="Gender" required error={errors.gender}>
+                <Select name="gender" value={form.gender} onChange={set("gender")}>
+                  <option value="">Select</option>
+                  <option>Female</option>
+                  <option>Male</option>
+                  <option>Other</option>
+                </Select>
+              </Field>
+            </div>
+            <Button type="submit" className="w-full" pending={busy} pendingLabel="Creating account…">Create account</Button>
+          </form>
+          <p className="text-center mt-5">Already registered? <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link></p>
+          <p className="text-xs text-muted text-center mt-6">Demo access · fictional data</p>
         </div>
-        <Button className="w-full" loading={busy}>
-          Create account
-        </Button>
-        <p className="text-center">
-          Already registered?{" "}
-          <Link className="text-primary font-medium" to="/login">
-            Sign in
-          </Link>
-        </p>
-      </form>
+      </main>
     </div>
   );
 }
