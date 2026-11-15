@@ -2,7 +2,6 @@ use Healthstack;
 
 drop trigger if exists trg_appointment_bi;
 drop trigger if exists trg_appointment_bu;
-drop trigger if exists trg_admission_bi;
 
 delimiter //
 
@@ -46,20 +45,5 @@ begin
     end if;
 end//
 
--- patients can only be assigned to nurses who still work here
-create trigger trg_admission_bi
-before insert on Admission
-for each row
-begin
-    if not exists (
-        select 1
-        from Employee
-        where Employee_id = new.Nurse_id
-          and Is_active
-    ) then
-        signal sqlstate '45000'
-            set message_text = 'nurse is no longer active';
-    end if;
-end//
 
 delimiter ;

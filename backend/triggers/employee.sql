@@ -8,8 +8,6 @@ drop trigger if exists trg_ward_boy_disjoint_before_insert;
 drop trigger if exists trg_ward_boy_disjoint_before_update;
 drop trigger if exists trg_receptionist_disjoint_before_insert;
 drop trigger if exists trg_receptionist_disjoint_before_update;
-drop trigger if exists trg_technician_disjoint_before_insert;
-drop trigger if exists trg_technician_disjoint_before_update;
 drop trigger if exists trg_pharmacist_disjoint_before_insert;
 drop trigger if exists trg_pharmacist_disjoint_before_update;
 drop trigger if exists trg_doctor_role;
@@ -24,9 +22,6 @@ drop trigger if exists trg_ward_boy_role_bu;
 drop trigger if exists trg_receptionist_role;
 drop trigger if exists trg_receptionist_role_bi;
 drop trigger if exists trg_receptionist_role_bu;
-drop trigger if exists trg_technician_role;
-drop trigger if exists trg_technician_role_bi;
-drop trigger if exists trg_technician_role_bu;
 drop trigger if exists trg_pharmacist_role;
 drop trigger if exists trg_pharmacist_role_bi;
 drop trigger if exists trg_pharmacist_role_bu;
@@ -83,13 +78,7 @@ create trigger trg_receptionist_role_bu
 before update on Receptionist
 for each row call check_employee_role(new.Employee_id, 'Receptionist')//
 
-create trigger trg_technician_role_bi
-before insert on Technician
-for each row call check_employee_role(new.Employee_id, 'Technician')//
 
-create trigger trg_technician_role_bu
-before update on Technician
-for each row call check_employee_role(new.Employee_id, 'Technician')//
 
 create trigger trg_pharmacist_role_bi
 before insert on Pharmacist
@@ -108,7 +97,6 @@ begin
         or exists (select 1 from Nurse where Employee_id = old.Employee_id)
         or exists (select 1 from Ward_boy where Employee_id = old.Employee_id)
         or exists (select 1 from Receptionist where Employee_id = old.Employee_id)
-        or exists (select 1 from Technician where Employee_id = old.Employee_id)
         or exists (select 1 from Pharmacist where Employee_id = old.Employee_id)
     ) then
         signal sqlstate '45000'
