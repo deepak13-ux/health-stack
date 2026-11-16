@@ -1,7 +1,13 @@
-import { Button, Loading } from "./ui";
+import { ErrorState, Skeleton } from "./ui.jsx";
 
-export function RemoteData({ state, children }) {
-  if (state.loading) return <Loading />;
-  if (state.error) return <div role="alert" className="p-4 bg-[#FDEDEE] rounded-xl space-y-3"><p>{state.error}</p><Button variant="secondary" onClick={state.reload}>Retry</Button></div>;
-  return children(state.data);
+// Loading skeleton → error with Retry → content. Previous data stays visible during reloads.
+export function RemoteData({ state, rows = 4, children, label }) {
+  if (state.data == null && state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
+  if (state.data == null) return <Skeleton rows={rows} label={label} />;
+  return (
+    <>
+      {state.error && <div className="mb-4"><ErrorState title="We couldn't refresh this." error={state.error} onRetry={state.reload} /></div>}
+      {children(state.data)}
+    </>
+  );
 }
